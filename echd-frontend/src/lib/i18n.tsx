@@ -1,0 +1,63 @@
+'use client';
+
+import { createContext, useCallback, useContext, useMemo } from 'react';
+import {
+  Locale,
+  dirOf,
+  formatDate,
+  formatDateTime,
+  formatMoney,
+  formatNumber,
+  formatTime,
+  intlLocale,
+  pickFor,
+  trFor,
+  weekdayName,
+  withLocale,
+} from './locale';
+
+interface Ctx {
+  locale: Locale;
+  arabicIndic: boolean;
+}
+const LocaleContext = createContext<Ctx>({ locale: 'fr', arabicIndic: false });
+
+export function LocaleProvider({
+  locale,
+  arabicIndic = false,
+  children,
+}: {
+  locale: Locale;
+  arabicIndic?: boolean;
+  children: React.ReactNode;
+}) {
+  const value = useMemo(() => ({ locale, arabicIndic }), [locale, arabicIndic]);
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
+
+/** Tout ce qu'il faut pour afficher du texte, des dates et des montants dans la langue courante. */
+export function useLocale() {
+  const { locale, arabicIndic } = useContext(LocaleContext);
+  const loc = intlLocale(locale, arabicIndic);
+  const t = useMemo(() => trFor(locale), [locale]);
+  const pick = useMemo(() => pickFor(locale), [locale]);
+  const href = useCallback((p: string) => withLocale(locale, p), [locale]);
+  return useMemo(
+    () => ({
+      locale,
+      loc,
+      dir: dirOf(locale),
+      isAr: locale === 'ar',
+      t,
+      pick,
+      href,
+      date: (v?: string | Date | null, style?: 'short' | 'medium' | 'long') => formatDate(v, loc, style),
+      dateTime: (v?: string | Date | null) => formatDateTime(v, loc),
+      money: (c?: number | null, currency = 'EUR') => formatMoney(c, loc, currency),
+      num: (n?: number | null) => formatNumber(n, loc),
+      time: (v?: string | null) => formatTime(v, loc),
+      weekday: (iso: number, style: 'long' | 'short' = 'long') => weekdayName(iso, loc, style),
+    }),
+    [locale, loc, t, pick, href],
+  );
+}

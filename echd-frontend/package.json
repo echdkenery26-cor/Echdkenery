@@ -1,0 +1,34 @@
+{
+  "name": "echd-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site public et espace de gestion de l'école coranique ECHD (Next.js)",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@fontsource/figtree": "^5.2.0",
+    "@fontsource/noto-naskh-arabic": "^5.2.0",
+    "@fontsource/noto-serif": "^5.2.0",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "lucide-react": "^1.0.0",
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
+    "sharp": "^0.34.0",
+    "swr": "^2.3.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0"
+  }
+}
