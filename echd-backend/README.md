@@ -134,7 +134,7 @@ Commandes typiques chez un hébergeur (Render, Railway, Fly, VPS…) :
 - `JWT_SECRET` long et aléatoire : `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`.
 - `API_URL` = adresse publique de l'API (sert à fabriquer les liens de photos), `APP_URL` = adresse du site (liens de réinitialisation de mot de passe), `CORS_ORIGINS` = adresse(s) du site.
 - **Site et API sur deux domaines différents** (ex. Vercel + Railway) : `COOKIE_SAMESITE=none` et `COOKIE_SECURE=true` (HTTPS obligatoire).
-- **E-mails** : renseigner `SMTP_*` (Brevo, Resend, Gmail…). Sans SMTP, les e-mails sont seulement écrits dans les logs (pratique en développement).
+- **E-mails** : renseigner `BREVO_API_KEY` (API HTTPS, fonctionne sur Render Free où le SMTP sortant est bloqué) **ou** `SMTP_*` (Gmail, OVH…), plus `MAIL_FROM`. Sans rien, les e-mails sont seulement écrits dans les logs (pratique en développement).
 - **Sauvegardes** : activer celles de PostgreSQL chez l'hébergeur, et télécharger régulièrement `GET /api/exports/backup`.
 
 ---
