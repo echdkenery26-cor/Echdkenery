@@ -156,7 +156,7 @@ export function PaymentCard({ p, onCancel }: { p: any; onCancel?: (p: any) => vo
 /* ─────────── Encaisser ─────────── */
 
 export function PaymentModal({ due, onClose, onDone }: { due: any | null; onClose: () => void; onDone?: () => void }) {
-  const { t, isAr, money } = useLocale();
+  const { t, isAr, money, currency } = useLocale();
   const toast = useToast();
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('CASH');
@@ -221,7 +221,7 @@ export function PaymentModal({ due, onClose, onDone }: { due: any | null; onClos
               </p>
             </div>
           )}
-          <TextField label={t('Montant (€)', 'المبلغ (€)')} required inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} className="[&_input]:text-start" />
+          <TextField label={`${t('Montant', 'المبلغ')} (${currency})`} required inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} className="[&_input]:text-start" />
           <Field label={t('Moyen de paiement', 'طريقة الدفع')}>
             <Chips value={method} onChange={setMethod} options={['CASH', 'CHEQUE', 'TRANSFER', 'CARD'].map((m) => ({ value: m, label: methodLabel(m, t) }))} />
           </Field>
@@ -398,7 +398,7 @@ export function ReminderModal({ target, onClose }: { target: { studentId?: strin
 /* ─────────── Échéance manuelle ─────────── */
 
 export function NewDueModal({ studentId, open, onClose }: { studentId: string; open: boolean; onClose: () => void }) {
-  const { t } = useLocale();
+  const { t, currency } = useLocale();
   const toast = useToast();
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
@@ -431,7 +431,7 @@ export function NewDueModal({ studentId, open, onClose }: { studentId: string; o
     <Modal open={open} onClose={onClose} title={t('Ajouter une échéance', 'إضافة استحقاق')}>
       <form onSubmit={go} className="space-y-4">
         <TextField label={t('Libellé', 'البيان')} required value={label} onChange={(e) => setLabel(e.target.value)} />
-        <TextField label={t('Montant (€)', 'المبلغ (€)')} required inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} className="[&_input]:text-start" />
+        <TextField label={`${t('Montant', 'المبلغ')} (${currency})`} required inputMode="decimal" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} className="[&_input]:text-start" />
         <TextField label={t('Date d’échéance', 'تاريخ الاستحقاق')} type="date" required dir="ltr" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="[&_input]:text-start" />
         {err && <Notice tone="bad">{err}</Notice>}
         <div className="flex justify-end gap-2">

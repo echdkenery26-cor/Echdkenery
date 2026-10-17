@@ -45,7 +45,7 @@ export default async function RootLocaleLayout({ children, params }: { children:
   return (
     <html lang={locale} dir={dirOf(locale)}>
       <body className="min-h-dvh antialiased">
-        <LocaleProvider locale={locale} arabicIndic={!!s['display.arabicIndicDigits']}>
+        <LocaleProvider locale={locale} arabicIndic={!!s['display.arabicIndicDigits']} currency={s['institute.currency'] || 'EUR'}>
           <FeedbackProvider>{children}</FeedbackProvider>
         </LocaleProvider>
         <PwaRegister />

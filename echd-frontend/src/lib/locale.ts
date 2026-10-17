@@ -58,7 +58,19 @@ export function formatDateTime(v: string | Date | null | undefined, loc: string)
 
 export function formatMoney(cents: number | null | undefined, loc: string, currency = 'EUR') {
   const n = (cents ?? 0) / 100;
-  return new Intl.NumberFormat(loc, { style: 'currency', currency, minimumFractionDigits: n % 1 ? 2 : 0 }).format(n);
+  let cur = (currency || 'EUR').trim().toUpperCase();
+  let digits = 2;
+  try {
+    digits = new Intl.NumberFormat(loc, { style: 'currency', currency: cur }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    cur = 'EUR'; // code de devise invalide dans les paramètres
+  }
+  return new Intl.NumberFormat(loc, {
+    style: 'currency',
+    currency: cur,
+    minimumFractionDigits: n % 1 ? digits : 0,
+    maximumFractionDigits: digits,
+  }).format(n);
 }
 
 export function formatNumber(n: number | null | undefined, loc: string) {

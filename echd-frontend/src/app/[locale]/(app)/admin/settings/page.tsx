@@ -52,7 +52,7 @@ export default function SettingsPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <SText k="institute.defaultCountryCode" label={t('Indicatif téléphonique', 'مفتاح الهاتف')} hint={t('Ex. 33 pour la France. Sert aux liens WhatsApp.', 'مثل 33 لفرنسا. يُستعمل لروابط واتساب.')} dir="ltr" className="[&_input]:text-start" />
               <SText k="institute.currency" label={t('Devise', 'العملة')} hint="EUR, GNF, USD…" dir="ltr" className="[&_input]:text-start" />
-              <SText k="institute.timezone" label={t('Fuseau horaire', 'المنطقة الزمنية')} hint="Europe/Paris" dir="ltr" className="[&_input]:text-start" />
+              <SText k="institute.timezone" label={t('Fuseau horaire', 'المنطقة الزمنية')} hint={t('Nom international, ex. Africa/Conakry (Guinée) ou Europe/Paris (France)', 'الاسم الدولي، مثل Africa/Conakry (غينيا) أو Europe/Paris (فرنسا)')} dir="ltr" className="[&_input]:text-start" />
             </div>
           </Section>
         </SettingsForm>

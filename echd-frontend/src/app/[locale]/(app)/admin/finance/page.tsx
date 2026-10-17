@@ -413,7 +413,7 @@ function Fees({ isAdmin }: { isAdmin: boolean }) {
 }
 
 function FeeForm({ open, fee, onClose }: { open: boolean; fee: any | null; onClose: () => void }) {
-  const { t, pick } = useLocale();
+  const { t, pick, currency } = useLocale();
   const toast = useToast();
   const { lk } = useLookups();
   const [f, setF] = useState<any>({});
@@ -456,7 +456,7 @@ function FeeForm({ open, fee, onClose }: { open: boolean; fee: any | null; onClo
             <option value="REGISTRATION">{t('Frais d’inscription', 'رسوم التسجيل')}</option>
           </SelectField>
         )}
-        <TextField label={t('Montant (€)', 'المبلغ (€)')} required inputMode="decimal" dir="ltr" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: e.target.value })} className="[&_input]:text-start" />
+        <TextField label={`${t('Montant', 'المبلغ')} (${currency})`} required inputMode="decimal" dir="ltr" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: e.target.value })} className="[&_input]:text-start" />
         {f.kind !== 'REGISTRATION' && (
           <SelectField label={t('Périodicité', 'الدورية')} value={f.period || 'MONTHLY'} onChange={(e) => setF({ ...f, period: e.target.value })}>
             {['MONTHLY', 'QUARTERLY', 'YEARLY', 'ONCE'].map((p) => <option key={p} value={p}>{periodLabel(p, t)}</option>)}
