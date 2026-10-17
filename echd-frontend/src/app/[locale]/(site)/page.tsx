@@ -1,7 +1,9 @@
+//echd-frontend/src/app/[locale]/(site)/page.tsx
 import { Clock, MapPin, MessageCircle, Phone } from 'lucide-react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { AnnouncementCard, Arrow, CourseCard, InfoRow, Section, SectionHead } from '@/components/site/blocks';
+import { Gallery } from '@/components/site/gallery';
 import { Lauh } from '@/components/site/lauh';
 import { LinkButton } from '@/components/ui/button';
 import { isLocale, pickFor, trFor } from '@/lib/locale';
@@ -76,6 +78,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           <p className="rounded-2xl bg-white p-6 text-brand-500 shadow-card">{t('Les cours seront bientôt publiés.', 'سيتم نشر الدروس قريباً.')}</p>
         )}
       </Section>
+
+      {/* La vie à l'école */}
+      <Gallery locale={locale} />
 
       {/* Comment s'inscrire */}
       {steps.length > 0 && (
