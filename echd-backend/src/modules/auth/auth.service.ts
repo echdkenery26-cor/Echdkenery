@@ -174,7 +174,7 @@ export class AuthService {
         data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 3600_000) },
       });
       const base = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-      const link = `${base}/reset-password?token=${token}`;
+      const link = `${base}/fr/reset-password?token=${token}`;
       const school = (await this.settings.get<{ fr: string }>('institute.name')).fr;
       await this.mail.send({
         to: user.email!,
