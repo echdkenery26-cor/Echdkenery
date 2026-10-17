@@ -1,3 +1,4 @@
+//echd-backend/src/modules/finance/finance.dto.ts
 import { DueStatus, FeeKind, FeePeriod, PaymentMethod, ReminderChannel } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
@@ -257,4 +258,15 @@ export class SummaryQuery {
   @IsOptional()
   @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'Mois au format YYYY-MM.' })
   month?: string;
+}
+
+/** Encaissements d'une période : le mois, le trimestre ou l'année civile qui contient `ref` (par défaut aujourd'hui). */
+export class CollectionsQuery {
+  @IsOptional()
+  @IsIn(['month', 'quarter', 'year'], { message: 'Période : month, quarter ou year.' })
+  period?: 'month' | 'quarter' | 'year';
+
+  @IsOptional()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'Référence au format YYYY-MM.' })
+  ref?: string;
 }

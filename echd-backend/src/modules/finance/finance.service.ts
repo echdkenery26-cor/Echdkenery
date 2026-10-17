@@ -1,3 +1,4 @@
+//echd-backend/src/modules/finance/finance.service.ts
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Due, DueStatus, FeePeriod, FeeSchedule, Prisma } from '@prisma/client';
 import { Actor, AuditService } from '../../common/audit.service';
@@ -35,6 +36,22 @@ export function computeDueStatus(
 }
 
 const MONTH_FMT = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+export type CollectionPeriod = 'month' | 'quarter' | 'year';
+
+/**
+ * Bornes [from, to[ de la période (mois, trimestre ou année civile) qui contient le mois `ref` (« AAAA-MM »).
+ * Fonction pure, testable : tout est calculé en UTC, comme les dates de paiement (jours « purs »).
+ */
+export function periodRange(period: CollectionPeriod, ref: string): { from: Date; to: Date; months: string[] } {
+  const [y, m] = ref.split('-').map(Number);
+  const startMonth = period === 'year' ? 0 : period === 'quarter' ? Math.floor((m - 1) / 3) * 3 : m - 1;
+  const length = period === 'year' ? 12 : period === 'quarter' ? 3 : 1;
+  const from = new Date(Date.UTC(y, startMonth, 1));
+  const to = new Date(Date.UTC(y, startMonth + length, 1));
+  const months = Array.from({ length }, (_, i) => ymd(new Date(Date.UTC(y, startMonth + i, 1))).slice(0, 7));
+  return { from, to, months };
+}
 
 @Injectable()
 export class FinanceService {
@@ -506,6 +523,47 @@ export class FinanceService {
       collectedCents: collected._sum.amountCents ?? 0,
       paymentsCount: collected._count,
       byMethod: byMethod.map((x) => ({ method: x.method, cents: x._sum.amountCents ?? 0 })),
+      expectedCents: expected._sum.amountCents ?? 0,
+      expectedPaidCents: expected._sum.paidCents ?? 0,
+    };
+  }
+
+  /**
+   * Encaissements d'une période (mois, trimestre ou année civile) : total réellement encaissé
+   * (paiements non annulés), détail par mode de paiement, détail mois par mois et montant attendu.
+   */
+  async collections(period: CollectionPeriod = 'month', ref?: string) {
+    await this.refreshStatuses();
+    const today = await this.settings.today();
+    const base = ref ?? ymd(today).slice(0, 7);
+    const { from, to, months } = periodRange(period, base);
+    const [payments, expected] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { cancelledAt: null, paidAt: { gte: from, lt: to } },
+        select: { amountCents: true, paidAt: true, method: true },
+      }),
+      this.prisma.due.aggregate({ where: { dueDate: { gte: from, lt: to }, status: { not: 'EXEMPT' } }, _sum: { amountCents: true, paidCents: true } }),
+    ]);
+
+    const perMonth = new Map<string, number>(months.map((k) => [k, 0]));
+    const perMethod = new Map<string, number>();
+    let collected = 0;
+    for (const p of payments) {
+      collected += p.amountCents;
+      const k = ymd(p.paidAt).slice(0, 7);
+      perMonth.set(k, (perMonth.get(k) ?? 0) + p.amountCents);
+      perMethod.set(p.method, (perMethod.get(p.method) ?? 0) + p.amountCents);
+    }
+
+    return {
+      period,
+      ref: base,
+      from: ymd(from),
+      to: ymd(new Date(to.getTime() - 86400000)), // dernier jour inclus
+      collectedCents: collected,
+      paymentsCount: payments.length,
+      byMethod: [...perMethod].map(([method, cents]) => ({ method, cents })).sort((a, b) => b.cents - a.cents),
+      byMonth: months.map((month) => ({ month, cents: perMonth.get(month) ?? 0 })),
       expectedCents: expected._sum.amountCents ?? 0,
       expectedPaidCents: expected._sum.paidCents ?? 0,
     };

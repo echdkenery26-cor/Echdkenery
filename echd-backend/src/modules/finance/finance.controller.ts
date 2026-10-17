@@ -1,3 +1,4 @@
+//echd-backend/src/modules/finance/finance.controller.ts
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuditService } from '../../common/audit.service';
@@ -5,6 +6,7 @@ import { AdminOnly, AuthUser, ClientIp, CurrentUser } from '../../common/decorat
 import { PrismaService } from '../../common/prisma.service';
 import {
   CancelPaymentDto,
+  CollectionsQuery,
   CreateDueDto,
   CreatePaymentDto,
   CreateReminderDto,
@@ -96,6 +98,12 @@ export class FinanceController {
   @Get('finance/summary')
   summary(@Query() q: SummaryQuery) {
     return this.finance.summary(q.month);
+  }
+
+  /** Total encaissé sur un mois, un trimestre ou une année (+ détail par mode de paiement et par mois). */
+  @Get('finance/collections')
+  collections(@Query() q: CollectionsQuery) {
+    return this.finance.collections(q.period, q.ref);
   }
 
   @Get('students/:id/finance')

@@ -1,8 +1,10 @@
+//echd-frontend/src/app/[locale]/(app)/admin/page.tsx
 'use client';
 
 import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardX, GraduationCap, Hourglass, Megaphone, UserPlus, Users, Wallet } from 'lucide-react';
+import { CollectionsCard } from '@/components/app/collections-card';
 import { SessionCard } from '@/components/app/session-card';
-import { Avatar, Badge, Card, CardTitle, ProgressBar, SectionTitle, StatCard } from '@/components/ui/display';
+import { Avatar, Badge, Card, CardTitle, SectionTitle, StatCard } from '@/components/ui/display';
 import { Link } from '@/components/ui/button';
 import { EmptyState, ErrorState, SkeletonCards } from '@/components/ui/feedback';
 import { useAuth } from '@/lib/auth';
@@ -20,7 +22,6 @@ export default function DashboardPage() {
 
   const k = data.kpis;
   const todo = data.todo;
-  const pct = k.expectedThisMonthCents > 0 ? Math.round((k.collectedThisMonthCents / k.expectedThisMonthCents) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -98,15 +99,7 @@ export default function DashboardPage() {
         </Card>
 
         <div className="space-y-5">
-          <Card>
-            <CardTitle icon={<Wallet className="size-4" />}>{t('Encaissements du mois', 'تحصيلات الشهر')}</CardTitle>
-            <p className="num font-serif text-3xl font-bold text-brand-800">{money(k.collectedThisMonthCents)}</p>
-            <p className="mb-3 text-sm text-brand-500">{t(`sur ${money(k.expectedThisMonthCents)} attendus`, `من أصل ${money(k.expectedThisMonthCents)} متوقعة`)}</p>
-            <ProgressBar value={pct} tone="ok" label={t('Encaissé', 'المحصَّل')} />
-            <Link href="/admin/finance" className="tap mt-3 inline-flex items-center text-sm font-semibold text-brand-600 hover:underline">
-              {t('Voir les cotisations', 'عرض الاشتراكات')}
-            </Link>
-          </Card>
+          <CollectionsCard />
 
           {data.recentAnnouncements?.length > 0 && (
             <Card>
