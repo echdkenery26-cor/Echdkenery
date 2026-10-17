@@ -130,7 +130,7 @@ Commandes typiques chez un hébergeur (Render, Railway, Fly, VPS…) :
 
 À prévoir :
 
-- **Un volume persistant** monté sur `UPLOAD_DIR` (sinon les photos disparaissent à chaque déploiement).
+- **Images** : définir `CLOUDINARY_URL` (`cloudinary://clé:secret@nom_du_cloud`) pour les stocker sur Cloudinary — recommandé sur Render, Railway, etc. Sans cette variable, elles sont écrites dans `UPLOAD_DIR`, qui doit alors être un **volume persistant** (sinon les photos disparaissent à chaque déploiement). Les photos d'élèves restent privées : elles passent par l'API avec un lien signé et temporaire.
 - `JWT_SECRET` long et aléatoire : `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`.
 - `API_URL` = adresse publique de l'API (sert à fabriquer les liens de photos), `APP_URL` = adresse du site (liens de réinitialisation de mot de passe), `CORS_ORIGINS` = adresse(s) du site.
 - **Site et API sur deux domaines différents** (ex. Vercel + Railway) : `COOKIE_SAMESITE=none` et `COOKIE_SECURE=true` (HTTPS obligatoire).

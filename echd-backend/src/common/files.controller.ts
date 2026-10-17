@@ -2,7 +2,7 @@ import { Controller, ForbiddenException, Get, NotFoundException, Param, Query, R
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from './decorators';
-import { FilesService } from './files.service';
+import { FilesService, USE_CLOUDINARY } from './files.service';
 import { SigningService } from './signing.service';
 
 @ApiExcludeController()
@@ -35,11 +35,17 @@ export class FilesController {
   }
 
   private async send(rel: string, res: Response, cache: string) {
-    const abs = this.files.abs(rel);
-    if (!(await this.files.exists(rel))) throw new NotFoundException('Fichier introuvable.');
+    this.files.abs(rel); // vérifie le format du chemin
+    // Fichier public stocké sur Cloudinary : on redirige vers son adresse directe
+    if (USE_CLOUDINARY && rel.startsWith('public/')) {
+      const url = this.files.url(rel);
+      if (url) return res.redirect(302, url);
+    }
+    const data = await this.files.read(rel);
+    if (!data) throw new NotFoundException('Fichier introuvable.');
     res.setHeader('Cache-Control', cache);
     res.setHeader('Content-Type', 'image/webp');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.sendFile(abs);
+    res.send(data);
   }
 }
