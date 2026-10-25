@@ -1,3 +1,4 @@
+//echd-backend/prisma/seed.ts
 /**
  * Données de départ ECHD — idempotent : on peut le relancer sans créer de doublons
  * et sans écraser ce que l'administrateur a modifié (on ne crée que ce qui manque).
@@ -271,14 +272,15 @@ async function main() {
         firstName: process.env.SEED_ADMIN_FIRSTNAME || 'Administrateur',
         lastName: '',
         role: 'ADMIN',
-        mustChangePassword: true,
+        // SEED_ADMIN_MUST_CHANGE=false : pratique pour une base de test (mot de passe fixe, pas d'écran de changement)
+        mustChangePassword: process.env.SEED_ADMIN_MUST_CHANGE !== 'false',
       },
     });
     console.log('\n──────────────────────────────────────────────');
     console.log(' Compte administrateur créé');
     console.log(`   Identifiant   : ${username}`);
     console.log(`   Mot de passe  : ${password}`);
-    console.log(' Il vous sera demandé de le changer à la première connexion.');
+    if (process.env.SEED_ADMIN_MUST_CHANGE !== 'false') console.log(' Il vous sera demandé de le changer à la première connexion.');
     console.log(' (Noté une seule fois : conservez-le maintenant.)');
     console.log('──────────────────────────────────────────────\n');
   } else {
