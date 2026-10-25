@@ -19,7 +19,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   'institute.email': '',
   'institute.hours': { fr: 'Le samedi', ar: 'يوم السبت' } as Bi,
   'institute.presentation': {
-    fr: "Cours d'arabe et de Coran pour enfants dès 6 ans et pour adultes, du niveau débutant au niveau confirmé.",
+    fr: "Cours d'apprentissage et de mémorisation du Coran pour enfants dès 6 ans et pour adultes, du niveau débutant au niveau confirmé.",
     ar: 'دروس في اللغة العربية والقرآن الكريم للأطفال من سن 6 سنوات وللكبار، من المبتدئ إلى المتقدم.',
   } as Bi,
   'institute.logo': null,
@@ -29,7 +29,7 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
 
   // Site public
   'site.heroTitle': {
-    fr: 'Lire le Coran et apprendre l\'arabe, à votre rythme',
+    fr: 'Lire et memoriser le coran à votre rythme',
     ar: 'اقرأ القرآن الكريم وتعلّم العربية بوتيرتك',
   } as Bi,
   'site.registrationOpen': true,
