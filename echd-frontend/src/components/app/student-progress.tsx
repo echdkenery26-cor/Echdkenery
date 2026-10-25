@@ -1,3 +1,4 @@
+//echd-frontend/src/components/app/student-progress.tsx
 'use client';
 
 import { BookOpen, Check, CircleDashed, Loader, Plus, Printer, Sparkles, Star, Trash2, TrendingUp } from 'lucide-react';
@@ -72,9 +73,14 @@ export function StudentProgress({ studentId, staff }: { studentId: string; staff
           <p className="font-serif text-xl font-bold text-brand-800">{data.level?.current ? pick(data.level.current.labelFr, data.level.current.labelAr) : t('Non défini', 'غير محدد')}</p>
           <p className="text-sm text-brand-500">{t(`Avancement global : ${data.percent} %`, `التقدّم العام: ${data.percent}٪`)}</p>
         </div>
-        <Button variant="outline" size="sm" icon={<Printer className="size-4" />} onClick={() => openDocument('bulletin', studentId, isAr ? 'ar' : 'fr', 1).catch((e) => toast.error(messageOf(e)))}>
-          {t('Bulletin', 'كشف النقاط')}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" icon={<Printer className="size-4" />} onClick={() => openDocument('bulletin', studentId, isAr ? 'ar' : 'fr', 1).catch((e) => toast.error(messageOf(e)))}>
+            {t('Bulletin', 'كشف النقاط')}
+          </Button>
+          <Button variant="outline" size="sm" icon={<Printer className="size-4" />} onClick={() => openDocument('year-report', studentId, isAr ? 'ar' : 'fr').catch((e) => toast.error(messageOf(e)))}>
+            {t('Bilan de l’année', 'حصيلة السنة')}
+          </Button>
+        </div>
       </Card>
 
       {lu?.proposed && (

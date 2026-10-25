@@ -13,7 +13,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "ts-node prisma/seed.ts",
-    "test": "ts-node test/smoke.ts"
+    "test": "ts-node test/smoke.ts",
+    "test:unit": "node --test --require reflect-metadata --require ts-node/register/transpile-only \"test/unit/*.test.ts\""
   },
   "dependencies": {
     "@fontsource/figtree": "^5.1.0",
@@ -56,9 +57,13 @@
     "rxjs": "^7.8.1",
     "sharp": "^0.34.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "web-push": "^3.6.7"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/web-push": "^3.6.4"
   }
 }

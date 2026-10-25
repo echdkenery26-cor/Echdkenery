@@ -1,8 +1,9 @@
+//echd-frontend/src/components/app/student-detail.tsx
 'use client';
 
 import {
   Archive, ArchiveRestore, CalendarCheck, CalendarX, ClipboardList, FileText, GraduationCap, History, Mail, MapPin, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, Printer,
-  Repeat, ShieldCheck, Trash2, UserPlus, Users, Wallet,
+  Link2, Repeat, ShieldCheck, Trash2, UserPlus, Users, Wallet,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -18,6 +19,7 @@ import { useLocale } from '@/lib/i18n';
 import { useLookups } from '@/lib/lookups';
 import { telLink, waLink, cn } from '@/lib/utils';
 import { actionLabel, actionTone, entityLabel } from './audit-labels';
+import { ParentLinkModal } from './parent-link';
 import { CancelPaymentModal, DueCard, ExemptModal, NewDueModal, PaymentCard, PaymentModal, ReminderModal } from './finance-bits';
 import { attendanceStatus, audienceLabel, enrollmentStatus, genderLabel, studentStatus } from './labels';
 import { StudentProgress } from './student-progress';
@@ -38,6 +40,7 @@ export function StudentDetail({ id, mode }: { id: string; mode: 'staff' | 'teach
   const { data: s, error, loading, reload } = useApi<any>(`/students/${id}`);
   const [tab, setTabState] = useState<TabId>((sp.get('tab') as TabId) || (staff ? 'info' : 'progress'));
   const [statusModal, setStatusModal] = useState(false);
+  const [parentLink, setParentLink] = useState(false);
 
   const setTab = (v: TabId) => {
     setTabState(v);
@@ -128,6 +131,7 @@ export function StudentDetail({ id, mode }: { id: string; mode: 'staff' | 'teach
                   <div className="space-y-0.5">
                     <MenuItem icon={<Printer className="size-4" />} onClick={() => { close(); openDocument('student-sheet', id, isAr ? 'ar' : 'fr').catch((e) => toast.error(messageOf(e))); }}>{t('Fiche élève (PDF)', 'بطاقة الطالب (PDF)')}</MenuItem>
                     <MenuItem icon={<Printer className="size-4" />} onClick={() => { close(); openDocument('timetable', id, isAr ? 'ar' : 'fr').catch((e) => toast.error(messageOf(e))); }}>{t('Emploi du temps', 'الجدول')}</MenuItem>
+                    <MenuItem icon={<Link2 className="size-4" />} onClick={() => { close(); setParentLink(true); }}>{t('Lien de suivi pour les parents', 'رابط متابعة لأولياء الأمور')}</MenuItem>
                     <MenuItem icon={<UserPlus className="size-4" />} onClick={() => { close(); router.push(`/${isAr ? 'ar' : 'fr'}/admin/students/new?sibling=${id}`); }}>{t('Ajouter un frère / une sœur', 'إضافة أخ / أخت')}</MenuItem>
                     <MenuItem icon={<Repeat className="size-4" />} onClick={() => { close(); setStatusModal(true); }}>{t('Changer le statut', 'تغيير الحالة')}</MenuItem>
                     {s.archivedAt ? (
@@ -154,6 +158,7 @@ export function StudentDetail({ id, mode }: { id: string; mode: 'staff' | 'teach
       {tab === 'history' && staff && <HistoryTab id={id} />}
 
       <StatusModal open={statusModal} student={s} onClose={() => setStatusModal(false)} />
+      {staff && <ParentLinkModal open={parentLink} onClose={() => setParentLink(false)} student={s} />}
     </div>
   );
 }

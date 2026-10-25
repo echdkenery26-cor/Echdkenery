@@ -1,3 +1,4 @@
+//echd-backend/src/common/utils.ts
 import { randomInt } from 'crypto';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
@@ -127,9 +128,17 @@ export function generatePassword(len = 10): string {
   return chars.join('');
 }
 
+/**
+ * Une cellule qui commence par = + - @ (ou tabulation / retour chariot) est interprétée comme une formule
+ * par Excel : un nom saisi par un visiteur (ex. « =HYPERLINK(...) ») pourrait s'exécuter à l'ouverture.
+ * On neutralise uniquement les textes (jamais les nombres) en préfixant une apostrophe.
+ */
+export const neutralizeFormula = (s: string): string => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
+
 export const csvEscape = (v: unknown): string => {
   if (v === null || v === undefined) return '';
-  const s = v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+  let s = v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+  if (typeof v === 'string') s = neutralizeFormula(s);
   return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 

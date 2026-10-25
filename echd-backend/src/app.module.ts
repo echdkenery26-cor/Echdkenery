@@ -1,3 +1,4 @@
+//echd-backend/src/app.module.ts
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -13,7 +14,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { ExportsModule } from './modules/exports/exports.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { PortalModule } from './modules/portal/portal.module';
 import { PreRegModule } from './modules/prereg/prereg.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { PublicModule } from './modules/public/public.module';
@@ -34,6 +37,7 @@ import { HealthController } from './health.controller';
     StaffModule,
     AcademicModule,
     FinanceModule,
+    ExpensesModule,
     ProgressModule,
     StudentsModule,
     AttendanceModule,
@@ -44,6 +48,7 @@ import { HealthController } from './health.controller';
     DocumentsModule,
     ExportsModule,
     PublicModule,
+    PortalModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -1,7 +1,9 @@
+//echd-frontend/src/app/[locale]/(app)/admin/settings/page.tsx
 'use client';
 
-import { Bell, Building2, Globe, MessageSquareText, ShieldCheck, Tags } from 'lucide-react';
-import { CategoriesField, LogoField, SBi, SNumber, SSelect, SSwitch, SText, Section, SettingsForm, StepsField, TermsField } from '@/components/app/settings/config';
+import { Bell, Building2, Landmark, Globe, MailCheck, MessageSquareText, ShieldCheck, Tags, Users } from 'lucide-react';
+import { CategoriesField, LogoField, SBi, SMoney, SNumber, SSelect, SSwitch, SText, Section, SettingsForm, StepsField, TermsField } from '@/components/app/settings/config';
+import { RevokePortalLinks } from '@/components/app/settings/portal';
 import { BackupCard, RoomsAndLevels, SchoolYears } from '@/components/app/settings/reference';
 import { PageHeader, Tabs } from '@/components/ui/display';
 import { useLocale } from '@/lib/i18n';
@@ -59,7 +61,7 @@ export default function SettingsPage() {
       )}
 
       {tab === 'site' && (
-        <SettingsForm keys={['site.heroTitle', 'site.registrationOpen', 'site.registrationSteps', 'site.registrationInfo', 'site.privacyPolicy', 'site.defaultLanguage', 'display.arabicIndicDigits']}>
+        <SettingsForm keys={['site.heroTitle', 'site.registrationOpen', 'site.registrationSteps', 'site.registrationInfo', 'site.privacyPolicy', 'site.defaultLanguage', 'display.arabicIndicDigits', 'portal.enabled', 'portal.linkDays']}>
           <Section title={t('Page d’accueil', 'الصفحة الرئيسية')} icon={<Globe className="size-4" />}>
             <SBi k="site.heroTitle" label={t('Grand titre', 'العنوان الرئيسي')} />
             <SSelect k="site.defaultLanguage" label={t('Langue par défaut', 'اللغة الافتراضية')} options={[['fr', 'Français'], ['ar', 'العربية']]} />
@@ -69,6 +71,11 @@ export default function SettingsPage() {
             <SSwitch k="site.registrationOpen" label={t('Préinscriptions ouvertes', 'التسجيل المسبق مفتوح')} hint={t('Fermé : le formulaire est remplacé par un message.', 'عند الإغلاق يُستبدل النموذج برسالة.')} />
             <StepsField k="site.registrationSteps" label={t('Étapes affichées', 'الخطوات المعروضة')} />
             <SBi k="site.registrationInfo" label={t('Information complémentaire', 'معلومة إضافية')} area rows={2} />
+          </Section>
+          <Section title={t('Espace parents', 'فضاء أولياء الأمور')} icon={<Users className="size-4" />} text={t('Chaque élève a un lien secret à envoyer aux parents (fiche élève → Plus d’actions). Aucun compte à créer.', 'لكل طالب رابط سري يُرسل لأولياء الأمور (بطاقة الطالب ← المزيد). لا حاجة لإنشاء حسابات.')}>
+            <SSwitch k="portal.enabled" label={t('Espace parents activé', 'فضاء أولياء الأمور مفعّل')} hint={t('Désactivé : tous les liens cessent de fonctionner.', 'عند التعطيل تتوقف جميع الروابط.')} />
+            <SNumber k="portal.linkDays" label={t('Durée de validité d’un lien (jours)', 'مدة صلاحية الرابط (أيام)')} min={1} max={365} />
+            <RevokePortalLinks />
           </Section>
           <Section title={t('Confidentialité', 'الخصوصية')}>
             <SBi k="site.privacyPolicy" label={t('Politique de confidentialité', 'سياسة الخصوصية')} hint={t('Affichée sur le formulaire de préinscription. Laisser vide pour masquer le lien.', 'تظهر في نموذج التسجيل المسبق. اتركها فارغة لإخفاء الرابط.')} area rows={6} />
@@ -89,7 +96,7 @@ export default function SettingsPage() {
       )}
 
       {tab === 'alerts' && (
-        <SettingsForm keys={['alerts.absenceThreshold', 'alerts.dueGraceDays', 'alerts.dueCriticalDays', 'alerts.preRegPendingDays', 'alerts.digest', 'fees.siblingDiscountPercent', 'security.inactivityMinutes', 'retention.years', 'terms.dates']}>
+        <SettingsForm keys={['alerts.absenceThreshold', 'alerts.dueGraceDays', 'alerts.dueCriticalDays', 'alerts.preRegPendingDays', 'alerts.digest', 'reminders.auto', 'reminders.everyDays', 'receipts.emailAuto', 'finance.openingBalanceCents', 'fees.siblingDiscountPercent', 'security.inactivityMinutes', 'retention.years', 'terms.dates']}>
           <Section title={t('Alertes', 'التنبيهات')} icon={<Bell className="size-4" />} text={t('Une vérification tourne chaque matin et crée les notifications.', 'يعمل فحص كل صباح وينشئ الإشعارات.')}>
             <div className="grid gap-4 md:grid-cols-2">
               <SNumber k="alerts.absenceThreshold" label={t('Absences avant alerte', 'عدد الغيابات قبل التنبيه')} min={1} max={20} />
@@ -98,6 +105,14 @@ export default function SettingsPage() {
               <SNumber k="alerts.dueCriticalDays" label={t('Retard critique après (jours)', 'تأخر حرج بعد (أيام)')} min={1} max={365} />
             </div>
             <SSelect k="alerts.digest" label={t('Récapitulatif par e-mail', 'ملخص بالبريد')} options={[['none', t('Aucun', 'بدون')], ['daily', t('Chaque jour', 'يومياً')], ['weekly', t('Chaque semaine', 'أسبوعياً')]]} />
+          </Section>
+          <Section title={t('Relances et reçus par e-mail', 'التذكيرات والإيصالات بالبريد')} icon={<MailCheck className="size-4" />} text={t('Nécessite un service e-mail configuré sur le serveur (Brevo ou SMTP).', 'يتطلب إعداد خدمة البريد على الخادم (Brevo أو SMTP).')}>
+            <SSwitch k="reminders.auto" label={t('Relances de paiement automatiques', 'تذكيرات السداد التلقائية')} hint={t('Chaque matin, les familles en retard reçoivent le message « Relance de paiement » (onglet Messages).', 'كل صباح تتلقى الأسر المتأخرة رسالة «تذكير بالسداد» (تبويب الرسائل).')} />
+            <SNumber k="reminders.everyDays" label={t('Intervalle entre deux relances (jours)', 'الفاصل بين تذكيرين (أيام)')} hint={t('Une famille n’est jamais relancée plus souvent.', 'لا تُذكَّر الأسرة أكثر من ذلك.')} min={1} max={60} />
+            <SSwitch k="receipts.emailAuto" label={t('Envoyer le reçu par e-mail à chaque encaissement', 'إرسال الإيصال بالبريد عند كل دفعة')} hint={t('Si une adresse existe. Modifiable au moment d’encaisser.', 'إن وُجد عنوان. قابل للتعديل عند التحصيل.')} />
+          </Section>
+          <Section title={t('Caisse', 'الصندوق')} icon={<Landmark className="size-4" />} text={t('Le solde disponible = solde de départ + cotisations encaissées − dépenses.', 'الرصيد المتاح = الرصيد الابتدائي + الاشتراكات المحصّلة − المصروفات.')}>
+            <SMoney k="finance.openingBalanceCents" label={t('Solde de départ', 'الرصيد الابتدائي')} hint={t('Argent déjà en caisse avant d’utiliser l’application (0 si vous partez de zéro).', 'المبلغ الموجود قبل استعمال التطبيق (0 إن بدأتم من الصفر).')} />
           </Section>
           <Section title={t('Règles', 'القواعد')} icon={<ShieldCheck className="size-4" />}>
             <div className="grid gap-4 md:grid-cols-3">

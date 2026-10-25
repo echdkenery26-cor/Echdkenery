@@ -1,3 +1,4 @@
+//echd-backend/src/modules/auth/auth.dto.ts
 import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
@@ -59,4 +60,10 @@ export class UpdateMeDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  /** Obligatoire uniquement si l'e-mail change */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  currentPassword?: string;
 }

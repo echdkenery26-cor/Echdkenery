@@ -1,5 +1,5 @@
 //echd-backend/src/modules/finance/finance.controller.ts
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuditService } from '../../common/audit.service';
 import { AdminOnly, AuthUser, ClientIp, CurrentUser } from '../../common/decorators';
@@ -147,6 +147,13 @@ export class FinanceController {
   @Post('payments')
   pay(@Body() dto: CreatePaymentDto, @CurrentUser() u: AuthUser, @ClientIp() ip: string) {
     return this.finance.createPayment(dto, u, ip);
+  }
+
+  /** Renvoie le reçu par e-mail (adresse du responsable ou de l'élève). */
+  @Post('payments/:id/send-receipt')
+  @HttpCode(200)
+  sendReceipt(@Param('id', ParseUUIDPipe) id: string) {
+    return this.finance.emailReceipt(id);
   }
 
   /** Annulation avec motif obligatoire (jamais de suppression silencieuse). */

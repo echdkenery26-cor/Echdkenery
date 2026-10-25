@@ -1,3 +1,4 @@
+//echd-backend/src/modules/students/enrollments.service.ts
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Actor, AuditService } from '../../common/audit.service';
 import { NotificationsService } from '../../common/notifications.service';
@@ -58,16 +59,21 @@ export class EnrollmentsService {
       await this.assertNoStudentConflict(studentId, cls.slots);
     }
 
-    const activeCount = await this.prisma.enrollment.count({ where: { classId: cls.id, status: 'ACTIVE' } });
-    const full = activeCount >= cls.capacity;
-    const enrollment = await this.prisma.enrollment.create({
-      data: {
-        studentId,
-        classId: cls.id,
-        status: full ? 'WAITLIST' : 'ACTIVE',
-        startDate: dto.startDate ? dateOnly(dto.startDate) : today,
-      },
-      include: { class: { select: { id: true, name: true } } },
+    // Verrou par classe le temps de la transaction : deux inscriptions simultanées ne peuvent pas prendre la dernière place
+    const { activeCount, full, enrollment } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${cls.id}))`;
+      const activeCount = await tx.enrollment.count({ where: { classId: cls.id, status: 'ACTIVE' } });
+      const full = activeCount >= cls.capacity;
+      const enrollment = await tx.enrollment.create({
+        data: {
+          studentId,
+          classId: cls.id,
+          status: full ? 'WAITLIST' : 'ACTIVE',
+          startDate: dto.startDate ? dateOnly(dto.startDate) : today,
+        },
+        include: { class: { select: { id: true, name: true } } },
+      });
+      return { activeCount, full, enrollment };
     });
     await this.audit.log(actor, full ? 'ENROLL_WAITLIST' : 'ENROLL', 'Enrollment', enrollment.id, undefined, enrollment, ip);
 
@@ -164,10 +170,13 @@ export class EnrollmentsService {
     const e = await this.prisma.enrollment.findUnique({ where: { id: enrollmentId }, include: { class: true } });
     if (!e) throw new NotFoundException('Inscription introuvable.');
     if (e.status !== 'WAITLIST') throw new BadRequestException("Cet élève n'est pas en liste d'attente.");
-    const active = await this.prisma.enrollment.count({ where: { classId: e.classId, status: 'ACTIVE' } });
-    if (active >= e.class.capacity) throw new ConflictException({ code: 'CLASS_FULL', message: 'La classe est toujours pleine.' });
     const today = await this.settings.today();
-    const updated = await this.prisma.enrollment.update({ where: { id: e.id }, data: { status: 'ACTIVE', startDate: today } });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${e.classId}))`;
+      const active = await tx.enrollment.count({ where: { classId: e.classId, status: 'ACTIVE' } });
+      if (active >= e.class.capacity) throw new ConflictException({ code: 'CLASS_FULL', message: 'La classe est toujours pleine.' });
+      return tx.enrollment.update({ where: { id: e.id }, data: { status: 'ACTIVE', startDate: today } });
+    });
     await this.audit.log(actor, 'ENROLLMENT_PROMOTE', 'Enrollment', e.id, e, updated, ip);
     await this.syncStudentStatus(e.studentId);
     await this.afterActivated(e.studentId, e.class.courseId);

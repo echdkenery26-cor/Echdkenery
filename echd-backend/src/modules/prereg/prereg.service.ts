@@ -1,3 +1,4 @@
+//echd-backend/src/modules/prereg/prereg.service.ts
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Actor, AuditService } from '../../common/audit.service';
@@ -264,10 +265,26 @@ export class PreRegService {
     const family = todo.length > 1 || pr.persons.length > 1 ? await this.findOrCreateFamily(pr.persons) : null;
     const created: { student: any; warnings: string[] }[] = [];
     for (const p of todo) {
-      const photo = p.photo ? await this.files.copy(p.photo, 'private', 'students') : null;
-      const res = await this.students.create(base(p) as any, actor, ip, { photo, familyId: family, gdprConsentAt: pr.consentAt });
-      await this.prisma.preRegPerson.update({ where: { id: p.id }, data: { studentId: res.student.id } });
-      created.push(res);
+      let photo: string | null = null;
+      let studentCreated = false;
+      try {
+        photo = p.photo ? await this.files.copy(p.photo, 'private', 'students') : null;
+        const res = await this.students.create(base(p) as any, actor, ip, { photo, familyId: family, gdprConsentAt: pr.consentAt });
+        studentCreated = true;
+        // Le lien est posé tout de suite : une personne déjà convertie n'est jamais recréée si l'on relance
+        await this.prisma.preRegPerson.update({ where: { id: p.id }, data: { studentId: res.student.id } });
+        created.push(res);
+      } catch (e) {
+        // La copie de photo n'est supprimée que si la fiche élève n'a pas été créée (sinon elle s'en sert)
+        if (photo && !studentCreated) await this.files.remove(photo).catch(() => undefined);
+        if (!created.length) throw e;
+        // Échec en cours de route : les fiches déjà créées sont conservées et reliées, on le dit clairement
+        const msg = (e as { message?: string }).message ?? 'erreur inconnue';
+        await this.audit.log(actor, 'CONVERT_PARTIAL', 'PreRegistration', id, { status: pr.status }, { students: created.map((c) => c.student.id), error: msg }, ip);
+        throw new ConflictException(
+          `${created.length} fiche(s) sur ${todo.length} créée(s) avant l’échec (« ${p.firstName} ${p.lastName} » : ${msg}). Relancez la conversion pour terminer : les fiches déjà créées ne seront pas dupliquées.`,
+        );
+      }
     }
     const after = await this.prisma.preRegistration.update({
       where: { id },

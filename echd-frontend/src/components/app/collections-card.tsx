@@ -1,16 +1,25 @@
 //echd-frontend/src/components/app/collections-card.tsx
 'use client';
 
-import { Wallet } from 'lucide-react';
+import { Landmark, Plus, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from '@/components/ui/button';
 import { Badge, Card, CardTitle, ProgressBar } from '@/components/ui/display';
+import { useAuth } from '@/lib/auth';
 import { useApi } from '@/lib/hooks';
 import { useLocale } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { methodLabel } from './labels';
 
 type Period = 'month' | 'quarter' | 'year';
+
+interface Balance {
+  collectedCents: number;
+  spentCents: number;
+  balanceCents: number;
+  expensesCount: number;
+  cash: { openingCents: number; collectedCents: number; spentCents: number; balanceCents: number };
+}
 
 interface Collections {
   period: Period;
@@ -30,6 +39,9 @@ export function CollectionsCard() {
   const { t, loc, money, num } = useLocale();
   const [period, setPeriod] = useState<Period>('month');
   const { data, error, validating, reload } = useApi<Collections>('/finance/collections', { period });
+  // Les dépenses et le solde ne sont visibles que de l'administrateur
+  const { isAdmin } = useAuth();
+  const bal = useApi<Balance>(isAdmin ? '/expenses/balance' : null, { period });
 
   const options: Array<{ value: Period; label: string }> = [
     { value: 'month', label: t('Mois', 'الشهر') },
@@ -130,12 +142,46 @@ export function CollectionsCard() {
               ))}
             </div>
           )}
+
+          {isAdmin && bal.data && (
+            <div className="mt-4 rounded-2xl bg-sand-100 p-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-brand-500">{t('Dépenses de la période', 'مصروفات الفترة')}</p>
+                  <p className="num font-serif text-lg font-bold text-bad">−{money(bal.data.spentCents)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-brand-500">{t('Solde de la période', 'رصيد الفترة')}</p>
+                  <p className={cn('num font-serif text-lg font-bold', bal.data.balanceCents < 0 ? 'text-bad' : 'text-ok')}>{money(bal.data.balanceCents)}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2.5 border-t border-sand-200 pt-3">
+                <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand-600 text-white"><Landmark className="size-4" /></span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-brand-500">{t('Solde disponible', 'الرصيد المتاح')}</p>
+                  <p className={cn('num font-serif text-xl font-bold', bal.data.cash.balanceCents < 0 ? 'text-bad' : 'text-brand-800')}>{money(bal.data.cash.balanceCents)}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      <Link href="/admin/finance" className="tap mt-3 inline-flex items-center text-sm font-semibold text-brand-600 hover:underline">
-        {t('Voir les cotisations', 'عرض الاشتراكات')}
-      </Link>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <Link href="/admin/finance" className="tap inline-flex items-center text-sm font-semibold text-brand-600 hover:underline">
+          {t('Voir les cotisations', 'عرض الاشتراكات')}
+        </Link>
+        {isAdmin && (
+          <>
+            <Link href="/admin/expenses" className="tap inline-flex items-center text-sm font-semibold text-brand-600 hover:underline">
+              {t('Voir les dépenses', 'عرض المصروفات')}
+            </Link>
+            <Link href="/admin/expenses?new=1" className="tap inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline">
+              <Plus className="size-3.5" /> {t('Dépense', 'مصروف')}
+            </Link>
+          </>
+        )}
+      </div>
     </Card>
   );
 }

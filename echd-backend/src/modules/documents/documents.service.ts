@@ -1,14 +1,17 @@
+//echd-backend/src/modules/documents/documents.service.ts
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { AuthUser } from '../../common/decorators';
+import { AccessService } from '../../common/access.service';
 import { FilesService } from '../../common/files.service';
 import { PrismaService } from '../../common/prisma.service';
 import { SettingsService } from '../../common/settings.service';
 import { ageOn, fullName, ymd } from '../../common/utils';
 import { TimetableService } from '../academic/timetable.service';
 import { ProgressService } from '../progress/progress.service';
+import { FONT_FACES, renderReceiptHtml } from './receipt-template';
 
-export type DocType = 'receipt' | 'student-sheet' | 'timetable' | 'bulletin';
+export type DocType = 'receipt' | 'student-sheet' | 'timetable' | 'bulletin' | 'year-report' | 'class-reports';
 export type Lang = 'fr' | 'ar';
 
 /** Utilisateur technique pour les liens partagés signés (lecture seule). */
@@ -31,6 +34,15 @@ const L = {
     timetable: 'Emploi du temps',
     bulletin: 'Bulletin',
     receiptNo: 'Reçu n°',
+    dueTotal: "Montant de l'échéance",
+    alreadyPaid: 'Déjà réglé',
+    thisPayment: 'Ce paiement',
+    remainingAfter: 'Reste à payer',
+    settled: 'Échéance soldée',
+    partial: 'Paiement partiel',
+    stampPaid: 'PAYÉ',
+    issuedOn: 'Émis le',
+    keepProof: 'À conserver comme preuve de paiement',
     date: 'Date',
     student: 'Élève',
     label: 'Objet',
@@ -98,6 +110,20 @@ const L = {
     methods: { CASH: 'Espèces', CHEQUE: 'Chèque', TRANSFER: 'Virement', CARD: 'Carte (sur place)' } as Record<string, string>,
     days: ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'],
     surah: 'Sourate',
+    yearReport: 'Bilan de l’année',
+    termSummary: 'Synthèse par trimestre',
+    termShort: 'Trimestre',
+    stepsAcquired: 'Étapes acquises',
+    surahsValidated: 'Sourates validées',
+    evalsCount: 'Évaluations',
+    yearAttendance: 'Assiduité sur l’année',
+    validatedInYear: 'Sourates validées durant l’année',
+    teacherComment: 'Appréciation générale de l’enseignant',
+    decision: 'Décision pédagogique',
+    promote: 'Passage au niveau supérieur',
+    keep: 'Maintien dans le niveau',
+    discuss: 'À discuter avec la famille',
+    yearTotal: 'Année',
   },
   ar: {
     receipt: 'إيصال دفع',
@@ -105,6 +131,15 @@ const L = {
     timetable: 'الجدول الزمني',
     bulletin: 'كشف التقدّم',
     receiptNo: 'إيصال رقم',
+    dueTotal: 'قيمة الاستحقاق',
+    alreadyPaid: 'سُدِّد سابقاً',
+    thisPayment: 'هذه الدفعة',
+    remainingAfter: 'المتبقي للسداد',
+    settled: 'الاستحقاق مسدَّد بالكامل',
+    partial: 'دفعة جزئية',
+    stampPaid: 'مدفوع',
+    issuedOn: 'صدر في',
+    keepProof: 'يُحفظ هذا الإيصال كإثبات للدفع',
     date: 'التاريخ',
     student: 'الطالب',
     label: 'البيان',
@@ -172,6 +207,20 @@ const L = {
     methods: { CASH: 'نقداً', CHEQUE: 'شيك', TRANSFER: 'تحويل بنكي', CARD: 'بطاقة' } as Record<string, string>,
     days: ['', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'],
     surah: 'سورة',
+    yearReport: 'الحصيلة السنوية',
+    termSummary: 'ملخص الفصول',
+    termShort: 'الفصل',
+    stepsAcquired: 'المراحل المكتسبة',
+    surahsValidated: 'السور المعتمدة',
+    evalsCount: 'التقييمات',
+    yearAttendance: 'الحضور خلال السنة',
+    validatedInYear: 'السور المعتمدة خلال السنة',
+    teacherComment: 'تقدير المعلّم العام',
+    decision: 'القرار التربوي',
+    promote: 'الانتقال إلى المستوى الأعلى',
+    keep: 'البقاء في المستوى نفسه',
+    discuss: 'للنقاش مع الأسرة',
+    yearTotal: 'السنة',
   },
 };
 
@@ -190,6 +239,7 @@ export class DocumentsService {
     private files: FilesService,
     private progress: ProgressService,
     private timetable: TimetableService,
+    private access: AccessService,
   ) {}
 
   /** Vérifie que l'utilisateur a le droit de produire ce document. */
@@ -211,6 +261,10 @@ export class DocumentsService {
         return this.timetableDoc(id, ctx, user);
       case 'bulletin':
         return this.bulletin(id, ctx, user, term ?? 1);
+      case 'year-report':
+        return this.layout(ctx, `${ctx.t.yearReport}`, await this.yearReportBody(id, ctx, user));
+      case 'class-reports':
+        return this.classReports(id, ctx, user);
       default:
         throw new BadRequestException('Type de document inconnu.');
     }
@@ -221,6 +275,7 @@ export class DocumentsService {
   private async context(lang: Lang) {
     const s = await this.settings.getMany([
       'institute.name',
+      'institute.shortName',
       'institute.address',
       'institute.phone',
       'institute.email',
@@ -238,6 +293,7 @@ export class DocumentsService {
       ar,
       t: L[lang],
       name: s['institute.name'][lang] || s['institute.name'].fr,
+      shortName: ((s['institute.shortName'] as string) || '').trim(),
       address: s['institute.address'][lang] || s['institute.address'].fr,
       phone: s['institute.phone'] as string,
       email: s['institute.email'] as string,
@@ -250,17 +306,16 @@ export class DocumentsService {
   }
 
   private layout(ctx: Awaited<ReturnType<DocumentsService['context']>>, title: string, body: string, watermark?: string) {
+    return this.layoutPages(ctx, title, [{ title, body, watermark }]);
+  }
+
+  /** Plusieurs pages (une par élève pour les bilans de classe) dans un seul document imprimable. */
+  private layoutPages(ctx: Awaited<ReturnType<DocumentsService['context']>>, docTitle: string, pages: Array<{ title: string; body: string; watermark?: string }>) {
     const dir = ctx.ar ? 'rtl' : 'ltr';
-    const fonts = `
-@font-face{font-family:'Figtree';font-weight:400;src:url('/api/assets/fonts/figtree-latin-400-normal.woff2') format('woff2')}
-@font-face{font-family:'Figtree';font-weight:600;src:url('/api/assets/fonts/figtree-latin-600-normal.woff2') format('woff2')}
-@font-face{font-family:'Figtree';font-weight:700;src:url('/api/assets/fonts/figtree-latin-700-normal.woff2') format('woff2')}
-@font-face{font-family:'Noto Serif';font-weight:700;src:url('/api/assets/fonts/noto-serif-latin-700-normal.woff2') format('woff2')}
-@font-face{font-family:'Noto Naskh Arabic';font-weight:400;src:url('/api/assets/fonts/noto-naskh-arabic-arabic-400-normal.woff2') format('woff2')}
-@font-face{font-family:'Noto Naskh Arabic';font-weight:700;src:url('/api/assets/fonts/noto-naskh-arabic-arabic-700-normal.woff2') format('woff2')}`;
+    const fonts = FONT_FACES;
     return `<!doctype html>
 <html lang="${ctx.lang}" dir="${dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)} — ${esc(ctx.name)}</title>
+<title>${esc(docTitle)} — ${esc(ctx.name)}</title>
 <style>${fonts}
 :root{--g:#1F4A3A;--gd:#122B23;--gold:#CFAE55;--cream:#FDFCF7;--beige:#F3EDDC;--line:#e3dcc3}
 *{box-sizing:border-box}
@@ -284,15 +339,20 @@ footer{margin-top:28px;font-size:11px;color:#6b776f;text-align:center}
 .btn{position:fixed;inset-block-end:16px;inset-inline-end:16px;background:var(--gold);color:var(--gd);border:0;border-radius:99px;padding:12px 20px;font:600 14px inherit;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 h2{font-size:16px;margin:20px 0 6px}
 @media print{body{background:#fff}.page{box-shadow:none;margin:0;max-width:none;padding:0;min-height:0}.btn{display:none}@page{size:A4;margin:14mm}}
+@media print{.page{break-after:page}.page:last-of-type{break-after:auto}}
 </style></head><body>
-<div class="page">
-${watermark ? `<div class="wm">${esc(watermark)}</div>` : ''}
+${pages
+  .map(
+    (p) => `<div class="page">
+${p.watermark ? `<div class="wm">${esc(p.watermark)}</div>` : ''}
 <header>${ctx.logo ? `<img src="${esc(ctx.logo)}" alt="">` : ''}
 <div class="org"><b>${esc(ctx.name)}</b><div>${esc([ctx.address, ctx.phone, ctx.email].filter(Boolean).join(' · '))}</div></div></header>
-<h1 class="doc-title">${esc(title)}</h1>
-${body}
+<h1 class="doc-title">${esc(p.title)}</h1>
+${p.body}
 <footer>${esc(ctx.name)}</footer>
-</div>
+</div>`,
+  )
+  .join('\n')}
 <button class="btn" onclick="window.print()">${esc(ctx.t.print)}</button>
 </body></html>`;
   }
@@ -310,27 +370,47 @@ ${body}
     });
     if (!p) throw new NotFoundException('Paiement introuvable.');
     const t = c.t;
-    const remaining = p.due.amountCents - p.due.paidCents;
-    const body = `
-<div class="box">
-  <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap">
-    <div><div style="font-size:12px;color:#6b776f">${esc(t.receiptNo)}</div><div class="big">${esc(p.receiptNumber)}</div></div>
-    <div><div style="font-size:12px;color:#6b776f">${esc(t.amount)}</div><div class="big">${esc(c.money(p.amountCents))}</div></div>
-  </div>
-</div>
-<div class="grid">
-${this.kv(t.date, c.date(p.paidAt))}
-${this.kv(t.student, fullName(p.student) + (c.ar && p.student.arabicName ? ` — ${p.student.arabicName}` : ''))}
-${this.kv(t.label, p.periodCovered || p.due.label)}
-${this.kv(t.method, t.methods[p.method])}
-${p.reference ? this.kv(t.reference, p.reference) : ''}
-${this.kv(t.remaining, c.money(Math.max(remaining, 0)))}
-${p.createdByLabel ? this.kv(t.enteredBy, p.createdByLabel) : ''}
-${p.cancelledAt ? this.kv(t.cancelReason, p.cancelReason) : ''}
-</div>
-<div class="sign"><div>${esc(t.signature)} — ${esc(c.name)}</div></div>
-<p style="margin-top:24px;color:#5b6b63">${esc(t.thanks)}</p>`;
-    return this.layout(c, t.receipt, body, p.cancelledAt ? t.cancelled : undefined);
+
+    // Situation de l'échéance AU MOMENT de ce paiement (un reçu réimprimé plus tard reste identique)
+    const earlier = await this.prisma.payment.findMany({
+      where: { dueId: p.dueId, cancelledAt: null, id: { not: p.id } },
+      select: { amountCents: true, paidAt: true, createdAt: true },
+    });
+    const before = earlier
+      .filter((e) => e.paidAt < p.paidAt || (e.paidAt.getTime() === p.paidAt.getTime() && e.createdAt <= p.createdAt))
+      .reduce((a, e) => a + e.amountCents, 0);
+    const total = p.due.amountCents;
+    const thisPay = p.cancelledAt ? 0 : p.amountCents;
+    const remaining = Math.max(total - before - thisPay, 0);
+    const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+    const today = await this.settings.today();
+
+    return renderReceiptHtml({
+      lang: c.lang,
+      ar: c.ar,
+      t,
+      org: { name: c.name, shortName: c.shortName, address: c.address, phone: c.phone, email: c.email, logo: c.logo },
+      number: p.receiptNumber,
+      amount: c.money(p.amountCents),
+      date: c.date(p.paidAt),
+      student: fullName(p.student),
+      studentArabic: p.student.arabicName,
+      label: p.periodCovered || p.due.label,
+      method: t.methods[p.method],
+      reference: p.reference,
+      enteredBy: p.createdByLabel,
+      due: {
+        total: c.money(total),
+        before: c.money(before),
+        remaining: c.money(remaining),
+        beforePct: pct(before),
+        thisPct: pct(thisPay),
+        settled: remaining === 0,
+      },
+      cancelled: !!p.cancelledAt,
+      cancelReason: p.cancelReason,
+      issuedOn: c.date(today),
+    });
   }
 
   /* ═══════════════ Fiche d'inscription ═══════════════ */
@@ -456,5 +536,93 @@ ${pathways || `<p>${esc(t.none)}</p>`}
 <table><tbody>${evals || `<tr><td>${esc(t.none)}</td></tr>`}</tbody></table>
 <div class="sign"><div>${esc(t.director)}</div><div>${esc(t.parents)}</div></div>`;
     return this.layout(c, `${t.bulletin} — ${t.term} ${c.d(b.term.index)}`, body);
+  }
+
+  /* ═══════════════ Bilan de fin d'année ═══════════════ */
+
+  /** Corps du bilan annuel d'un élève : synthèse des trois trimestres + progression + espace de décision. */
+  private async yearReportBody(studentId: string, c: Awaited<ReturnType<DocumentsService['context']>>, user: AuthUser): Promise<string> {
+    const t = c.t;
+    const terms = [await this.progress.bulletinData(studentId, 1, user), await this.progress.bulletinData(studentId, 2, user), await this.progress.bulletinData(studentId, 3, user)];
+    const last = terms[2];
+    const s = last.student;
+    const sum = terms.reduce(
+      (a, b) => ({
+        present: a.present + b.attendance.present,
+        late: a.late + b.attendance.late,
+        absent: a.absent + b.attendance.absent,
+        excused: a.excused + b.attendance.excused,
+      }),
+      { present: 0, late: 0, absent: 0, excused: 0 },
+    );
+    const counted = sum.present + sum.late + sum.absent;
+    const rate = counted ? Math.round(((sum.present + sum.late) / counted) * 100) : null;
+    const surahs = terms.flatMap((x) => x.validatedSurahsInTerm);
+    const evals = terms.flatMap((x) => x.evaluations);
+    const steps = terms.reduce((a, x) => a + x.stepsAcquiredInTerm, 0);
+    const classes = s.enrollments.map((e) => `${c.pick(e.class.course.titleFr, e.class.course.titleAr)} — ${e.class.name}`).join(' · ');
+
+    const rows = terms
+      .map(
+        (x) =>
+          `<tr><td><b>${esc(t.termShort)} ${esc(c.d(x.term.index))}</b><div style="font-size:11px;color:#6b776f">${esc(c.date(x.term.start))} → ${esc(c.date(x.term.end))}</div></td>` +
+          `<td>${x.attendance.rate === null ? '—' : esc(c.d(x.attendance.rate)) + '%'}</td>` +
+          `<td>${esc(c.d(x.stepsAcquiredInTerm))}</td><td>${esc(c.d(x.validatedSurahsInTerm.length))}</td><td>${esc(c.d(x.evaluations.length))}</td></tr>`,
+      )
+      .join('');
+    const pathways = last.progress.pathways
+      .map(
+        (p) => `
+<div class="box" style="padding:10px 14px">
+  <div style="display:flex;justify-content:space-between;gap:12px"><b>${esc(c.pick(p.pathway.titleFr, p.pathway.titleAr))}</b><b>${esc(c.d(p.percent))}%</b></div>
+  <div class="bar" style="margin:6px 0 4px"><i style="width:${p.percent}%"></i></div>
+  <div style="font-size:12px;color:#5b6b63">${esc(c.d(p.doneCount))} / ${esc(c.d(p.total))} ${esc(t.steps)}</div>
+</div>`,
+      )
+      .join('');
+    const evalRows = evals
+      .slice(0, 8)
+      .map((e) => `<tr><td>${esc(c.date(e.date))}</td><td><b>${esc(t.appr[e.appreciation])}</b>${e.score != null ? ` · ${esc(c.d(e.score))}` : ''}</td><td>${esc(e.comment)}</td></tr>`)
+      .join('');
+
+    return `
+<div class="grid">
+  ${this.kv(t.student, fullName(s) + (c.ar && s.arabicName ? ` — ${s.arabicName}` : ''))}
+  ${this.kv(t.schoolYear, last.year.name)}
+  ${this.kv(t.level, last.progress.level.current ? c.pick(last.progress.level.current.labelFr, last.progress.level.current.labelAr) : '')}
+  ${this.kv(t.classes, classes)}
+</div>
+<h2>${esc(t.termSummary)}</h2>
+<table><thead><tr><th>${esc(t.term)}</th><th>${esc(t.rate)}</th><th>${esc(t.stepsAcquired)}</th><th>${esc(t.surahsValidated)}</th><th>${esc(t.evalsCount)}</th></tr></thead>
+<tbody>${rows}
+<tr style="background:var(--cream)"><td><b>${esc(t.yearTotal)}</b></td><td><b>${rate === null ? '—' : esc(c.d(rate)) + '%'}</b></td><td><b>${esc(c.d(steps))}</b></td><td><b>${esc(c.d(surahs.length))}</b></td><td><b>${esc(c.d(evals.length))}</b></td></tr></tbody></table>
+<div class="grid">
+  ${this.kv(t.yearAttendance, `${t.present} ${c.d(sum.present)} · ${t.late} ${c.d(sum.late)} · ${t.absent} ${c.d(sum.absent)} · ${t.excused} ${c.d(sum.excused)}`)}
+  ${this.kv(t.validatedTotal, c.d(last.progress.memorizationSummary.validated))}
+</div>
+${surahs.length ? `<div class="kv"><span>${esc(t.validatedInYear)}</span><b>${surahs.map((m) => esc(c.ar ? m.nameAr : m.nameLatin)).join('، ')}</b></div>` : ''}
+<h2>${esc(t.progress)} — ${esc(c.d(last.progress.percent))}%</h2>
+${pathways || `<p>${esc(t.none)}</p>`}
+${evalRows ? `<h2>${esc(t.evaluations)}</h2><table><tbody>${evalRows}</tbody></table>` : ''}
+<h2>${esc(t.teacherComment)}</h2>
+<div class="box" style="min-height:70px"></div>
+<h2>${esc(t.decision)}</h2>
+<p>☐ ${esc(t.promote)} &nbsp;&nbsp; ☐ ${esc(t.keep)} &nbsp;&nbsp; ☐ ${esc(t.discuss)}</p>
+<div class="sign"><div>${esc(t.director)}</div><div>${esc(t.parents)}</div></div>`;
+  }
+
+  /** Les bilans de tous les élèves d'une classe en un seul document (une page par élève). */
+  private async classReports(classId: string, c: Awaited<ReturnType<DocumentsService['context']>>, user: AuthUser): Promise<string> {
+    const cls = await this.access.assertClassAccess(user, classId);
+    const students = await this.prisma.student.findMany({
+      where: { archivedAt: null, enrollments: { some: { classId, status: 'ACTIVE' } } },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      select: { id: true },
+      take: 80,
+    });
+    if (!students.length) throw new NotFoundException('Aucun élève inscrit dans cette classe.');
+    const pages: Array<{ title: string; body: string }> = [];
+    for (const st of students) pages.push({ title: c.t.yearReport, body: await this.yearReportBody(st.id, c, user) });
+    return this.layoutPages(c, `${c.t.yearReport} — ${cls.name}`, pages);
   }
 }

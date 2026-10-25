@@ -1,3 +1,4 @@
+//echd-backend/src/modules/documents/documents.controller.ts
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -7,9 +8,9 @@ import { AnyRole, AuthUser, CurrentUser, Public, StaffOnly } from '../../common/
 import { SigningService } from '../../common/signing.service';
 import { DocType, DocumentsService, Lang, SHARE_USER } from './documents.service';
 
-const TYPES = ['receipt', 'student-sheet', 'timetable', 'bulletin'] as const;
+const TYPES = ['receipt', 'student-sheet', 'timetable', 'bulletin', 'year-report', 'class-reports'] as const;
 // Documents qu'on peut partager par lien (WhatsApp / e-mail)
-const SHAREABLE: DocType[] = ['receipt', 'timetable', 'bulletin'];
+const SHAREABLE: DocType[] = ['receipt', 'timetable', 'bulletin', 'year-report'];
 
 class DocQuery {
   @IsOptional()

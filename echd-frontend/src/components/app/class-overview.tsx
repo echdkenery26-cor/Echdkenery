@@ -1,20 +1,30 @@
+//echd-frontend/src/components/app/class-overview.tsx
 'use client';
 
-import { BookOpen, CalendarCheck, Star, Users } from 'lucide-react';
+import { BookOpen, CalendarCheck, Printer, Star, Users } from 'lucide-react';
 import { Avatar, Badge, Card, ProgressBar } from '@/components/ui/display';
-import { EmptyState, ErrorState, SkeletonCards } from '@/components/ui/feedback';
-import { useApi } from '@/lib/hooks';
+import { Button } from '@/components/ui/button';
+import { EmptyState, ErrorState, SkeletonCards, useToast } from '@/components/ui/feedback';
+import { openDocument } from '@/lib/api';
+import { messageOf, useApi } from '@/lib/hooks';
 import { useLocale } from '@/lib/i18n';
 import { apprLabel } from './student-progress';
 
 /** Vue d'ensemble d'une classe : avancement, mémorisation, assiduité et dernière évaluation de chaque élève. */
 export function ClassOverview({ classId, studentBase }: { classId: string; studentBase: string }) {
-  const { t, pick, num, date } = useLocale();
+  const { t, pick, num, date, isAr } = useLocale();
+  const toast = useToast();
   const { data, error, loading, reload } = useApi<any>(`/classes/${classId}/progress-overview`);
   if (error) return <ErrorState message={error.message} onRetry={reload} />;
   if (loading || !data) return <SkeletonCards n={4} />;
   if (data.students.length === 0) return <EmptyState icon={<Users className="size-6" />} title={t('Aucun élève dans cette classe', 'لا يوجد طلاب في هذا القسم')} />;
   return (
+    <div>
+      <div className="mb-3 flex justify-end">
+        <Button variant="outline" size="sm" icon={<Printer className="size-4" />} onClick={() => openDocument('class-reports', classId, isAr ? 'ar' : 'fr').catch((e) => toast.error(messageOf(e)))}>
+          {t('Bilans de fin d’année de la classe', 'حصيلة السنة لكل القسم')}
+        </Button>
+      </div>
     <div className="grid gap-3 md:grid-cols-2">
       {data.students.map((s: any) => (
         <Card key={s.id} href={`${studentBase}/${s.id}?tab=progress`}>
@@ -36,6 +46,7 @@ export function ClassOverview({ classId, studentBase }: { classId: string; stude
           </div>
         </Card>
       ))}
+    </div>
     </div>
   );
 }

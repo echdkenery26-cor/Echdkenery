@@ -1,3 +1,4 @@
+//echd-frontend/src/app/[locale]/(app)/admin/finance/page.tsx
 'use client';
 
 import { AlertTriangle, Bell, CalendarClock, CheckCircle2, Download, Pencil, Plus, Receipt, RefreshCw, Trash2, TrendingUp, Users, Wallet } from 'lucide-react';
@@ -27,7 +28,7 @@ import { centsToEuro, euroToCents } from '@/lib/utils';
 
 type TabId = 'students' | 'dues' | 'payments' | 'fees';
 const PAGE = 20;
-const refreshAll = () => invalidate('/dues', '/payments', '/finance', '/students', '/dashboard', '/fees');
+const refreshAll = () => invalidate('/dues', '/payments', '/finance', '/students', '/dashboard', '/fees', '/expenses');
 
 export default function FinancePage() {
   const { t, num, money } = useLocale();
@@ -55,9 +56,10 @@ export default function FinancePage() {
     }
   }
 
-  async function exportFile(kind: 'dues' | 'payments') {
+  async function exportFile(kind: 'dues' | 'payments' | 'accounting') {
     try {
-      await download(`/exports/${kind}`, { format: 'xlsx', month: kind === 'dues' ? f.month || undefined : undefined }, `${kind}.xlsx`);
+      if (kind === 'accounting') await download('/exports/accounting', { month: f.month || undefined }, 'comptabilite.xlsx');
+      else await download(`/exports/${kind}`, { format: 'xlsx', month: kind === 'dues' ? f.month || undefined : undefined }, `${kind}.xlsx`);
     } catch (e) {
       toast.error(messageOf(e));
     }
@@ -87,6 +89,9 @@ export default function FinancePage() {
                   </button>
                   <button type="button" className="tap rounded-xl px-3 text-start text-sm font-semibold text-brand-700 hover:bg-sand-100" onClick={() => { close(); exportFile('payments'); }}>
                     {t('Paiements (Excel)', 'الدفعات (Excel)')}
+                  </button>
+                  <button type="button" className="tap rounded-xl px-3 text-start text-sm font-semibold text-brand-700 hover:bg-sand-100" onClick={() => { close(); exportFile('accounting'); }}>
+                    {t('Comptabilité du mois (Excel)', 'محاسبة الشهر (Excel)')}
                   </button>
                 </div>
               )}

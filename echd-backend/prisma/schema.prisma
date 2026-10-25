@@ -1,3 +1,4 @@
+//echd-backend/prisma/schema.prisma
 // Schéma de données ECHD — PostgreSQL
 // Client "Rust-free" (engineType = "client") : pas de binaire de requête à télécharger,
 // la connexion passe par l'adaptateur @prisma/adapter-pg (voir src/common/prisma.service.ts).
@@ -105,6 +106,13 @@ enum PaymentMethod {
   CARD
 }
 
+enum ExpenseCategory {
+  SALARY
+  EQUIPMENT
+  SUPPLIES
+  OTHER
+}
+
 enum ExceptionType {
   CANCELLED
   MOVED
@@ -162,6 +170,21 @@ model User {
   refreshTokens  RefreshToken[]
   passwordResets PasswordReset[]
   notifications  Notification[]
+  pushSubscriptions PushSubscription[]
+}
+
+/// Abonnements aux notifications push (un par appareil / navigateur)
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model RefreshToken {
@@ -672,6 +695,31 @@ model Payment {
 
   @@index([studentId])
   @@index([paidAt])
+}
+
+/// Dépenses de l'école (salaires, équipements, fournitures, autres) : elles viennent en déduction du solde.
+/// Jamais supprimées : une dépense erronée est annulée avec un motif et reste dans l'historique.
+model Expense {
+  id             String          @id @default(uuid())
+  number         String          @unique
+  category       ExpenseCategory
+  label          String
+  beneficiary    String?
+  amountCents    Int
+  spentAt        DateTime        @db.Date
+  method         PaymentMethod
+  reference      String?
+  comment        String?
+  cancelledAt    DateTime?
+  cancelReason   String?
+  cancelledById  String?
+  createdById    String?
+  createdByLabel String          @default("")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([spentAt])
+  @@index([category])
 }
 
 model Reminder {

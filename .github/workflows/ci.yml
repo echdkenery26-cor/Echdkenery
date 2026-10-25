@@ -1,0 +1,54 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (build + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: echd-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: echd-backend/package-lock.json
+      - run: npm ci # lance aussi « prisma generate » (postinstall)
+      - run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/echd
+      - run: npm run build
+      - run: npm run test:unit
+      - name: Failles connues dans les dépendances (informatif)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+  frontend:
+    name: Frontend (types)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: echd-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: echd-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Failles connues dans les dépendances (informatif)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true

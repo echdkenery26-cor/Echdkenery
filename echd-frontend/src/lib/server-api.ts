@@ -1,3 +1,4 @@
+//echd-frontend/src/lib/server-api.ts
 import 'server-only';
 
 // Appels à l'API depuis le serveur Next (pages publiques). En cas d'échec on renvoie null :
@@ -12,6 +13,17 @@ export async function publicGet<T = any>(path: string, revalidate = 30): Promise
     return (await res.json()) as T;
   } catch {
     return null;
+  }
+}
+
+/** Espace parents : jamais mis en cache (données personnelles, lien secret dans l'adresse). */
+export async function portalGet<T = any>(token: string): Promise<{ status: number; data: T | null }> {
+  try {
+    const res = await fetch(`${API_URL}/api/portal/${encodeURIComponent(token)}`, { cache: 'no-store' });
+    if (!res.ok) return { status: res.status, data: null };
+    return { status: 200, data: (await res.json()) as T };
+  } catch {
+    return { status: 0, data: null };
   }
 }
 

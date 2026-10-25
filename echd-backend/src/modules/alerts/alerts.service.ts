@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+//echd-backend/src/modules/alerts/alerts.service.ts
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Role } from '@prisma/client';
 import { FilesService } from '../../common/files.service';
@@ -11,7 +12,7 @@ import { AttendanceService } from '../attendance/attendance.service';
 import { FinanceService } from '../finance/finance.service';
 
 @Injectable()
-export class AlertsService {
+export class AlertsService implements OnApplicationBootstrap {
   private readonly logger = new Logger('Alerts');
 
   constructor(
@@ -107,10 +108,37 @@ export class AlertsService {
 
   @Cron('0 7 * * *', { timeZone: process.env.CRON_TZ || 'Europe/Paris' })
   async dailyJob() {
+    await this.runDailyOnce();
+  }
+
+  /**
+   * Rattrapage au démarrage : sur un hébergement qui s'endort (Render gratuit), le serveur peut dormir à 7 h.
+   * Au réveil, si la tâche du jour n'a pas tourné et qu'il est 7 h passées, on la lance (une seule fois par jour).
+   */
+  onApplicationBootstrap() {
+    if (process.env.DAILY_CATCHUP === 'false') return;
+    setTimeout(() => {
+      const tz = process.env.CRON_TZ || 'Europe/Paris';
+      const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+      if (hour >= 7) void this.runDailyOnce();
+    }, 30_000).unref();
+  }
+
+  /** Une seule exécution par jour, même si le cron et le rattrapage se croisent ou si deux instances tournent. */
+  private async runDailyOnce() {
+    let key = '';
     try {
+      key = `daily-${ymd(await this.settings.today())}`;
+      try {
+        await this.prisma.counter.create({ data: { key, value: 1 } });
+      } catch {
+        return; // déjà exécutée aujourd'hui
+      }
       await this.runDaily();
     } catch (e) {
       this.logger.error(`Tâche quotidienne en échec : ${(e as Error).message}`);
+      // on libère le jour pour permettre un nouvel essai (rattrapage au prochain démarrage)
+      if (key) await this.prisma.counter.delete({ where: { key } }).catch(() => undefined);
     }
   }
 
@@ -140,6 +168,9 @@ export class AlertsService {
         dedupeKey: `late:${studentId}:${critical ? 'C' : 'L'}:${dues[0].id}`,
       });
     }
+
+    // 1 bis) Relances de paiement automatiques par e-mail (si activées dans les réglages)
+    const remindersSent = await this.sendAutoReminders();
 
     // 2) Hebdomadaire : préinscriptions non traitées, élèves sans classe
     const monday = ymd(addDays(today, -(isoWeekday(today) - 1)));
@@ -193,8 +224,52 @@ export class AlertsService {
     await this.prisma.passwordReset.deleteMany({ where: { expiresAt: { lt: addDays(now, -1) } } });
     await this.prisma.notification.deleteMany({ where: { read: true, createdAt: { lt: addDays(now, -90) } } });
 
-    this.logger.log(`Tâche quotidienne terminée : ${created} notification(s) créée(s), résumé e-mail ${digestSent ? 'envoyé' : 'non envoyé'}.`);
-    return { notifications: created, digestSent };
+    this.logger.log(`Tâche quotidienne terminée : ${created} notification(s) créée(s), résumé e-mail ${digestSent ? 'envoyé' : 'non envoyé'}, ${remindersSent} relance(s) envoyée(s).`);
+    return { notifications: created, digestSent, remindersSent };
+  }
+
+  /**
+   * Relance chaque famille en retard de paiement par e-mail, au plus une fois tous les « reminders.everyDays » jours.
+   * Message = modèle « Relance de paiement » des réglages (FR + AR). Chaque envoi est tracé dans l'historique des relances.
+   */
+  async sendAutoReminders(): Promise<number> {
+    const cfg = await this.settings.getMany(['reminders.auto', 'reminders.everyDays', 'institute.name']);
+    if (!cfg['reminders.auto']) return 0;
+    if (!this.mail.enabled) {
+      this.logger.warn('Relances automatiques activées mais aucun service e-mail n’est configuré (BREVO_API_KEY ou SMTP_HOST).');
+      return 0;
+    }
+    const since = addDays(new Date(), -Number(cfg['reminders.everyDays']));
+    const late = await this.prisma.due.findMany({
+      where: { status: { in: ['LATE', 'CRITICAL'] }, student: { archivedAt: null, status: { in: ['ENROLLED', 'SUSPENDED'] } } },
+      select: { studentId: true },
+      distinct: ['studentId'],
+      take: 300,
+    });
+    const school = cfg['institute.name'].fr as string;
+    let sent = 0;
+    for (const { studentId } of late) {
+      if (sent >= 150) break; // garde-fou : quota d'envoi quotidien des services e-mail gratuits
+      const recent = await this.prisma.reminder.findFirst({ where: { studentId, channel: 'EMAIL', createdAt: { gte: since } }, select: { id: true } });
+      if (recent) continue;
+      const student = await this.prisma.student.findUnique({ where: { id: studentId }, include: { guardians: true } });
+      if (!student) continue;
+      const to = this.finance.recipientsOf(student);
+      if (!to.length) continue;
+      try {
+        const fr = await this.finance.prepareReminder({ studentId, lang: 'fr' });
+        if (fr.amountCents <= 0) continue;
+        const ar = await this.finance.prepareReminder({ studentId, lang: 'ar' });
+        const message = `${fr.message}\n\n—\n\n${ar.message}`;
+        const ok = await this.mail.send({ to, subject: `${school} — Rappel de cotisation`, text: message });
+        if (!ok) continue;
+        await this.prisma.reminder.create({ data: { studentId, channel: 'EMAIL', message: fr.message, createdByLabel: 'Automatique' } });
+        sent++;
+      } catch (e) {
+        this.logger.warn(`Relance automatique impossible (${studentId}) : ${(e as Error).message}`);
+      }
+    }
+    return sent;
   }
 
   async sendDigest(): Promise<boolean> {

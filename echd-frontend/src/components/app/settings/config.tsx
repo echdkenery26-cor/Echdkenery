@@ -1,3 +1,4 @@
+//echd-frontend/src/components/app/settings/config.tsx
 'use client';
 
 import { Check, ImagePlus, Plus, Save, Trash2, X } from 'lucide-react';
@@ -9,6 +10,7 @@ import { Field, SelectField, Switch, TextField, TextareaField } from '@/componen
 import { api, del } from '@/lib/api';
 import { invalidate, messageOf, useApi } from '@/lib/hooks';
 import { useLocale } from '@/lib/i18n';
+import { centsToEuro, euroToCents } from '@/lib/utils';
 
 /* ─────────── Formulaire de paramètres : ne renvoie que ce qui a changé ─────────── */
 
@@ -109,6 +111,30 @@ export function SNumber({ k, label, hint, min, max, suffix }: { k: string; label
       onChange={(e) => set(k, e.target.value === '' ? '' : Number(e.target.value))}
       className="[&_input]:text-start"
       placeholder={suffix}
+    />
+  );
+}
+
+/** Montant stocké en centimes dans les paramètres, saisi et affiché dans la devise de l'école. */
+export function SMoney({ k, label, hint }: { k: string; label: string; hint?: string }) {
+  const { v, set } = useS();
+  const { currency } = useLocale();
+  const [text, setText] = useState<string | null>(null);
+  const cents = Number(v[k] ?? 0) || 0;
+  return (
+    <TextField
+      label={`${label} (${currency})`}
+      hint={hint}
+      inputMode="decimal"
+      dir="ltr"
+      value={text ?? centsToEuro(cents)}
+      onChange={(e) => {
+        setText(e.target.value);
+        const c = e.target.value.trim() === '' ? 0 : euroToCents(e.target.value);
+        if (Number.isFinite(c)) set(k, c);
+      }}
+      onBlur={() => setText(null)}
+      className="[&_input]:text-start"
     />
   );
 }

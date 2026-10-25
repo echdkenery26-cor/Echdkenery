@@ -1,8 +1,10 @@
+//echd-backend/src/modules/auth/auth.service.ts
 import {
   BadRequestException,
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -19,11 +21,13 @@ import { ChangePasswordDto, UpdateMeDto } from './auth.dto';
 export const REFRESH_COOKIE = 'echd_rt';
 const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
+const ROTATION_GRACE_MS = 10_000;
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger('Auth');
   // hash factice pour égaliser le temps de réponse quand l'utilisateur n'existe pas
   private readonly dummyHash = bcrypt.hashSync('not-a-real-password', 10);
 
@@ -127,8 +131,20 @@ export class AuthService {
       this.clearCookie(res);
       throw new UnauthorizedException('Session expirée.');
     }
-    // Réutilisation d'un jeton déjà roulé : vol possible → on coupe toutes les sessions de l'utilisateur
     if (row.revokedAt) {
+      // Jeton roulé il y a quelques secondes (deux onglets ou deux requêtes qui se croisent) : ce n'est pas un vol.
+      // Une rotation marque revokedAt == lastUsedAt ; une déconnexion ou un changement de mot de passe ne le fait pas.
+      const rotated = row.revokedAt.getTime() === row.lastUsedAt.getTime();
+      if (rotated && Date.now() - row.revokedAt.getTime() < ROTATION_GRACE_MS && row.user.active) {
+        const accessToken = await this.issueTokens(row.userId, res, userAgent);
+        return {
+          accessToken,
+          user: this.publicUser(row.user),
+          mustChangePassword: row.user.mustChangePassword,
+          inactivityMinutes: await this.settings.get<number>('security.inactivityMinutes'),
+        };
+      }
+      // Réutilisation tardive d'un jeton déjà roulé : vol possible → on coupe toutes les sessions de l'utilisateur
       await this.prisma.refreshToken.updateMany({
         where: { userId: row.userId, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -143,7 +159,8 @@ export class AuthService {
       this.clearCookie(res);
       throw new UnauthorizedException(idle ? 'Déconnecté après une période d’inactivité.' : 'Session expirée.');
     }
-    await this.prisma.refreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
+    const now = new Date();
+    await this.prisma.refreshToken.update({ where: { id: row.id }, data: { revokedAt: now, lastUsedAt: now } });
     const accessToken = await this.issueTokens(row.userId, res, userAgent);
     return {
       accessToken,
@@ -166,27 +183,33 @@ export class AuthService {
 
   /* ───────── Mot de passe ───────── */
 
+  /**
+   * Répond immédiatement et identiquement, que l'adresse existe ou non : le travail (base + e-mail) se fait en
+   * arrière-plan, pour qu'on ne puisse pas deviner les comptes existants en mesurant le temps de réponse.
+   */
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-    if (user?.active) {
-      const token = randomBytes(32).toString('base64url');
-      await this.prisma.passwordReset.create({
-        data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 3600_000) },
-      });
-      const base = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-      const link = `${base}/fr/reset-password?token=${token}`;
-      const school = (await this.settings.get<{ fr: string }>('institute.name')).fr;
-      await this.mail.send({
-        to: user.email!,
-        subject: `${school} — Réinitialisation du mot de passe`,
-        text:
-          `Bonjour ${user.firstName},\n\nPour choisir un nouveau mot de passe, ouvrez ce lien (valable 1 heure) :\n${link}\n\n` +
-          `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\n` +
-          `السلام عليكم، لتعيين كلمة مرور جديدة افتح الرابط أعلاه (صالح لمدة ساعة).`,
-      });
-    }
-    // Même réponse dans tous les cas : on ne révèle pas si l'adresse existe
+    void this.sendResetLink(email).catch((e) => this.logger.error(`Mot de passe oublié : ${(e as Error).message}`));
     return { ok: true };
+  }
+
+  private async sendResetLink(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (!user?.active || !user.email) return;
+    const token = randomBytes(32).toString('base64url');
+    await this.prisma.passwordReset.create({
+      data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 3600_000) },
+    });
+    const base = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const link = `${base}/fr/reset-password?token=${token}`;
+    const school = (await this.settings.get<{ fr: string }>('institute.name')).fr;
+    await this.mail.send({
+      to: user.email,
+      subject: `${school} — Réinitialisation du mot de passe`,
+      text:
+        `Bonjour ${user.firstName},\n\nPour choisir un nouveau mot de passe, ouvrez ce lien (valable 1 heure) :\n${link}\n\n` +
+        `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\n` +
+        `السلام عليكم، لتعيين كلمة مرور جديدة افتح الرابط أعلاه (صالح لمدة ساعة).`,
+    });
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -250,9 +273,24 @@ export class AuthService {
   }
 
   async updateMe(user: AuthUser, dto: UpdateMeDto) {
-    const data: any = { ...dto };
-    if (dto.email) data.email = dto.email.toLowerCase();
+    const { currentPassword, ...fields } = dto;
+    const data: any = { ...fields };
+    const current = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    if (dto.email) {
+      data.email = dto.email.trim().toLowerCase();
+      // Changer l'e-mail = changer le destinataire du « mot de passe oublié » : on redemande le mot de passe
+      if (data.email !== (current.email ?? '').toLowerCase()) {
+        if (!currentPassword || !(await bcrypt.compare(currentPassword, current.passwordHash))) {
+          throw new BadRequestException('Pour changer votre e-mail, saisissez votre mot de passe actuel.');
+        }
+        const taken = await this.prisma.user.findFirst({ where: { email: data.email, NOT: { id: user.id } }, select: { id: true } });
+        if (taken) throw new BadRequestException('Cette adresse e-mail est déjà utilisée.');
+      } else {
+        delete data.email;
+      }
+    }
     const row = await this.prisma.user.update({ where: { id: user.id }, data });
+    if (data.email) await this.audit.log(user, 'EMAIL_CHANGE', 'User', user.id);
     return this.publicUser(row);
   }
 

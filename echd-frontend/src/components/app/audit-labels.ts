@@ -1,3 +1,4 @@
+//echd-frontend/src/components/app/audit-labels.ts
 type T = (fr: string, ar: string) => string;
 
 const ACTIONS: Record<string, [string, string]> = {
@@ -26,12 +27,30 @@ const ACTIONS: Record<string, [string, string]> = {
   PUBLISH: ['Publication', 'نشر'],
   UNPUBLISH: ['Dépublication', 'إلغاء النشر'],
   SETTINGS: ['Paramètres modifiés', 'تعديل الإعدادات'],
+  PORTAL_LINK: ['Lien parents créé', 'إنشاء رابط الأولياء'],
+  PORTAL_REVOKE_ALL: ['Liens parents révoqués', 'إلغاء روابط الأولياء'],
+  ACCOUNTING_EXPORT: ['Export comptable', 'تصدير محاسبي'],
+  CONVERT_PARTIAL: ['Préinscription convertie (partielle)', 'تحويل جزئي لتسجيل مسبق'],
+  EMAIL_CHANGE: ['E-mail modifié', 'تغيير البريد الإلكتروني'],
+  CANCEL_EXPENSE: ['Dépense annulée', 'إلغاء مصروف'],
+  EXPENSES_EXPORT: ['Export des dépenses', 'تصدير المصروفات'],
+  CANCEL_PAYMENT: ['Paiement annulé', 'إلغاء دفعة'],
+  UNEXEMPT: ['Exonération retirée', 'إلغاء إعفاء'],
+  TRANSFER: ['Changement de classe', 'تغيير القسم'],
+  ENROLLMENT_PROMOTE: ['Passage de classe', 'ترقية قسم'],
+  DUPLICATE: ['Duplication', 'نسخ'],
+  LINK_SIBLING: ['Frère/sœur rattaché', 'ربط أخ/أخت'],
+  UNLINK_SIBLING: ['Frère/sœur détaché', 'فك ربط أخ/أخت'],
+  ASSIGN_PATHWAY: ['Parcours attribué', 'إسناد مسار'],
+  UNASSIGN_PATHWAY: ['Parcours retiré', 'سحب مسار'],
+  PASSWORD_RESET_BY_ADMIN: ['Mot de passe réinitialisé (admin)', 'إعادة تعيين كلمة المرور (مشرف)'],
 };
 
 const ENTITIES: Record<string, [string, string]> = {
   Student: ['Élève', 'طالب'],
   Enrollment: ['Inscription', 'تسجيل'],
   Payment: ['Paiement', 'دفعة'],
+  Expense: ['Dépense', 'مصروف'],
   Due: ['Échéance', 'استحقاق'],
   User: ['Compte', 'حساب'],
   Teacher: ['Enseignant', 'معلّم'],

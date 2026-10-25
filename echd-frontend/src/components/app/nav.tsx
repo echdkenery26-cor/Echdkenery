@@ -1,8 +1,10 @@
+//echd-frontend/src/components/app/nav.tsx
 import {
   BookOpen,
   CalendarDays,
   ClipboardCheck,
   GraduationCap,
+  HandCoins,
   Home,
   KeyRound,
   LayoutDashboard,
@@ -58,6 +60,7 @@ export const STAFF_NAV: NavGroup[] = [
     title: ['Gestion', 'التسيير'],
     items: [
       { href: '/admin/finance', label: ['Cotisations', 'الاشتراكات'], icon: Wallet, tab: true },
+      { href: '/admin/expenses', label: ['Dépenses', 'المصروفات'], icon: HandCoins, roles: ['ADMIN'] },
       { href: '/admin/announcements', label: ['Annonces', 'الإعلانات'], icon: Megaphone },
       { href: '/admin/team', label: ['Équipe', 'الفريق'], icon: UserCog },
     ],

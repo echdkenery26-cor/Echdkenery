@@ -194,6 +194,11 @@ export class CreatePaymentDto {
   @IsString()
   @MaxLength(500)
   comment?: string;
+
+  /** Envoyer le reçu par e-mail ; absent = selon le réglage « receipts.emailAuto » */
+  @IsOptional()
+  @IsBoolean()
+  sendReceipt?: boolean;
 }
 
 export class CancelPaymentDto {

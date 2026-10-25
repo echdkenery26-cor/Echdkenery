@@ -1,3 +1,4 @@
+//echd-backend/src/common/signing.service.ts
 import { Injectable } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
 
@@ -10,6 +11,18 @@ export class SigningService {
 
   sign(payload: string, exp: number): string {
     return createHmac('sha256', this.secret()).update(`${payload}|${exp}`).digest('base64url');
+  }
+
+  /**
+   * Lien temporaire vers un document imprimable (même format que POST /documents/share).
+   * Utilisé par les e-mails de reçu et l'espace parents.
+   */
+  documentUrl(type: string, id: string, lang: 'fr' | 'ar', hours: number, term?: number): { url: string; expiresAt: Date } {
+    const exp = Math.floor(Date.now() / 1000) + hours * 3600;
+    const sig = this.sign(`${type}|${id}|${lang}|${term ?? ''}`, exp);
+    const base = (process.env.API_URL || `http://localhost:${process.env.PORT || 4000}`).replace(/\/$/, '');
+    const qs = new URLSearchParams({ lang, exp: String(exp), sig, ...(term ? { term: String(term) } : {}) });
+    return { url: `${base}/api/documents/shared/${type}/${id}?${qs}`, expiresAt: new Date(exp * 1000) };
   }
 
   verify(payload: string, exp: number, sig: string): boolean {

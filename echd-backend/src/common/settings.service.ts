@@ -1,3 +1,4 @@
+//echd-backend/src/common/settings.service.ts
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { todayIn } from './utils';
@@ -77,6 +78,21 @@ export const SETTINGS_DEFAULTS: Record<string, any> = {
   // Cotisations
   'fees.siblingDiscountPercent': 0,
 
+  // Caisse : solde de départ (en centimes), avant l'utilisation de l'application
+  'finance.openingBalanceCents': 0,
+
+  // Relances de paiement automatiques par e-mail (désactivées par défaut)
+  'reminders.auto': false,
+  'reminders.everyDays': 7,
+  // Reçu envoyé automatiquement par e-mail à chaque encaissement (si une adresse existe)
+  'receipts.emailAuto': false,
+
+  // Espace parents : lien de suivi sécurisé par élève (sans compte)
+  'portal.enabled': true,
+  'portal.linkDays': 90,
+  // Numéro de série des liens : l'augmenter révoque tous les liens déjà envoyés
+  'portal.epoch': 1,
+
   // RGPD
   'retention.years': 3,
 
@@ -128,6 +144,7 @@ export const LOOKUP_SETTING_KEYS = [
   'institute.timezone',
   'security.inactivityMinutes',
   'alerts.absenceThreshold',
+  'receipts.emailAuto',
 ];
 
 @Injectable()
@@ -178,6 +195,14 @@ export class SettingsService {
     this.cache = null;
   }
 
+  /** Invalide d'un coup tous les liens « espace parents » déjà envoyés. */
+  async bumpPortalEpoch(): Promise<number> {
+    const next = Number(await this.get<number>('portal.epoch')) + 1;
+    await this.prisma.setting.upsert({ where: { key: 'portal.epoch' }, update: { value: next }, create: { key: 'portal.epoch', value: next } });
+    this.cache = null;
+    return next;
+  }
+
   private validate(v: Record<string, any>) {
     const intIn = (k: string, min: number, max: number) => {
       if (k in v && (!Number.isInteger(v[k]) || v[k] < min || v[k] > max))
@@ -190,6 +215,13 @@ export class SettingsService {
     intIn('alerts.preRegPendingDays', 1, 60);
     intIn('fees.siblingDiscountPercent', 0, 100);
     intIn('retention.years', 1, 20);
+    intIn('reminders.everyDays', 1, 60);
+    intIn('portal.linkDays', 1, 365);
+    intIn('finance.openingBalanceCents', -2_000_000_000, 2_000_000_000);
+    for (const k of ['reminders.auto', 'receipts.emailAuto', 'portal.enabled']) {
+      if (k in v && typeof v[k] !== 'boolean') throw new BadRequestException(`${k} doit être vrai ou faux.`);
+    }
+    if ('portal.epoch' in v) throw new BadRequestException('Utilisez « Révoquer tous les liens » pour invalider les liens parents.');
     if ('alerts.digest' in v && !['none', 'daily', 'weekly'].includes(v['alerts.digest']))
       throw new BadRequestException('alerts.digest doit valoir none, daily ou weekly.');
     if ('institute.timezone' in v) {

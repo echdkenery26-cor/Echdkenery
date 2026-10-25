@@ -2,8 +2,10 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Due, DueStatus, FeePeriod, FeeSchedule, Prisma } from '@prisma/client';
 import { Actor, AuditService } from '../../common/audit.service';
+import { MailService } from '../../common/mail.service';
 import { PrismaService } from '../../common/prisma.service';
 import { SettingsService } from '../../common/settings.service';
+import { SigningService } from '../../common/signing.service';
 import { addMonths, dateOnly, diffDays, normalizePhone, pageArgs, pageResult, ymd } from '../../common/utils';
 import {
   CancelPaymentDto,
@@ -62,6 +64,8 @@ export class FinanceService {
     private prisma: PrismaService,
     private settings: SettingsService,
     private audit: AuditService,
+    private mail: MailService,
+    private signing: SigningService,
   ) {}
 
   async thresholds(): Promise<DueThresholds> {
@@ -414,9 +418,9 @@ export class FinanceService {
 
   /* ═══════════════ Paiements ═══════════════ */
 
-  private async nextReceiptNumber(): Promise<string> {
-    const year = (await this.settings.today()).getUTCFullYear();
-    const c = await this.prisma.counter.upsert({
+  /** Dans la transaction du paiement : un paiement échoué ne « brûle » pas de numéro de reçu. */
+  private async nextReceiptNumber(year: number, db: Prisma.TransactionClient): Promise<string> {
+    const c = await db.counter.upsert({
       where: { key: `receipt-${year}` },
       update: { value: { increment: 1 } },
       create: { key: `receipt-${year}`, value: 1 },
@@ -437,8 +441,16 @@ export class FinanceService {
     const paidAt = dto.paidAt ? dateOnly(dto.paidAt) : today;
     if (paidAt > today) throw new BadRequestException('La date de paiement ne peut pas être dans le futur.');
 
-    const receiptNumber = await this.nextReceiptNumber();
     const payment = await this.prisma.$transaction(async (tx) => {
+      // Garde atomique : deux encaissements simultanés ne peuvent pas dépasser le montant dû
+      const guard = await tx.due.updateMany({
+        where: { id: due.id, status: { not: 'EXEMPT' }, paidCents: { lte: due.amountCents - dto.amountCents } },
+        data: { paidCents: { increment: dto.amountCents } },
+      });
+      if (guard.count !== 1) {
+        throw new ConflictException('Cette échéance vient d’être modifiée (paiement simultané ?). Rechargez la page et réessayez.');
+      }
+      const receiptNumber = await this.nextReceiptNumber(today.getUTCFullYear(), tx);
       const p = await tx.payment.create({
         data: {
           studentId: due.studentId,
@@ -454,15 +466,67 @@ export class FinanceService {
           createdByLabel: actor ? `${actor.firstName} ${actor.lastName}`.trim() : '',
         },
       });
-      await tx.due.update({ where: { id: due.id }, data: { paidCents: { increment: dto.amountCents } } });
       return p;
     });
     await this.applyStatus(due.id);
     await this.audit.log(actor, 'PAYMENT', 'Payment', payment.id, undefined, payment, ip);
+    // Reçu par e-mail : demandé sur ce paiement, sinon selon le réglage général (jamais bloquant)
+    const sendReceipt = dto.sendReceipt ?? (await this.settings.get<boolean>('receipts.emailAuto'));
+    if (sendReceipt) void this.emailReceipt(payment.id).catch((e) => this.logger.warn(`Reçu non envoyé : ${(e as Error).message}`));
     return this.prisma.payment.findUniqueOrThrow({
       where: { id: payment.id },
       include: { due: true, student: { select: { id: true, firstName: true, lastName: true } } },
     });
+  }
+
+  /** Adresses e-mail à utiliser pour un élève : responsables légaux pour un enfant, l'élève lui-même pour un adulte. */
+  recipientsOf(student: { audience: string; email: string | null; guardians: Array<{ email: string | null }> }): string[] {
+    const guardians = student.guardians.map((g) => g.email).filter((e): e is string => !!e);
+    const own = student.email ? [student.email] : [];
+    const list = student.audience === 'CHILD' ? (guardians.length ? guardians : own) : own.length ? own : guardians;
+    return [...new Set(list.map((e) => e.trim().toLowerCase()))];
+  }
+
+  /** Envoie le reçu par e-mail (lien sécurisé valable 30 jours). Renvoie les destinataires, ou une liste vide si aucune adresse. */
+  async emailReceipt(paymentId: string): Promise<{ sent: boolean; to: string[] }> {
+    const p = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { due: true, student: { include: { guardians: true } } },
+    });
+    if (!p) throw new NotFoundException('Paiement introuvable.');
+    if (p.cancelledAt) throw new BadRequestException('Ce paiement est annulé : aucun reçu à envoyer.');
+    const to = this.recipientsOf(p.student);
+    if (!to.length) return { sent: false, to: [] };
+
+    const cfg = await this.settings.getMany(['institute.name', 'institute.currency']);
+    const school: string = cfg['institute.name'].fr;
+    const schoolAr: string = cfg['institute.name'].ar || school;
+    const money = (c: number, loc: string) => new Intl.NumberFormat(loc, { style: 'currency', currency: cfg['institute.currency'] }).format(c / 100);
+    const day = (loc: string) => new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(p.paidAt);
+    const remaining = Math.max(p.due.amountCents - p.due.paidCents, 0);
+    const name = `${p.student.firstName} ${p.student.lastName}`.trim();
+    const link = this.signing.documentUrl('receipt', p.id, 'fr', 30 * 24).url;
+    const linkAr = this.signing.documentUrl('receipt', p.id, 'ar', 30 * 24).url;
+    const text = [
+      'Bonjour,',
+      '',
+      `Nous confirmons la réception d'un paiement de ${money(p.amountCents, 'fr-FR')} pour ${name} (${p.periodCovered || p.due.label}), le ${day('fr-FR')}.`,
+      `Reçu n° ${p.receiptNumber}. Reste à payer sur cette échéance : ${money(remaining, 'fr-FR')}.`,
+      '',
+      `Voir ou imprimer le reçu (lien valable 30 jours) : ${link}`,
+      '',
+      `Merci pour votre confiance. ${school}`,
+      '',
+      '—',
+      '',
+      'السلام عليكم،',
+      `نؤكد استلام دفعة بمبلغ ${money(p.amountCents, 'ar-u-nu-latn')} عن ${name} (${p.periodCovered || p.due.label}) بتاريخ ${day('ar-u-nu-latn')}.`,
+      `إيصال رقم ${p.receiptNumber}. المتبقي من هذا الاستحقاق: ${money(remaining, 'ar-u-nu-latn')}.`,
+      `عرض الإيصال أو طباعته (الرابط صالح 30 يوماً): ${linkAr}`,
+      `شكراً لثقتكم. ${schoolAr}`,
+    ].join('\n');
+    const sent = await this.mail.send({ to, subject: `${school} — Reçu ${p.receiptNumber}`, text });
+    return { sent, to };
   }
 
   /** Règle 6 : un paiement ne se supprime jamais, il s'annule avec un motif (tracé dans le journal). */
@@ -471,12 +535,14 @@ export class FinanceService {
     if (!p) throw new NotFoundException('Paiement introuvable.');
     if (p.cancelledAt) throw new BadRequestException('Ce paiement est déjà annulé.');
     const updated = await this.prisma.$transaction(async (tx) => {
-      const u = await tx.payment.update({
-        where: { id },
+      // Garde atomique : deux annulations simultanées ne retirent pas le montant deux fois
+      const claimed = await tx.payment.updateMany({
+        where: { id, cancelledAt: null },
         data: { cancelledAt: new Date(), cancelReason: dto.reason, cancelledById: actor.id },
       });
+      if (claimed.count !== 1) throw new BadRequestException('Ce paiement est déjà annulé.');
       await tx.due.update({ where: { id: p.dueId }, data: { paidCents: { decrement: p.amountCents } } });
-      return u;
+      return tx.payment.findUniqueOrThrow({ where: { id } });
     });
     // l'échéance redevient « à venir / en retard / partiel » selon la date
     const due = await this.prisma.due.findUniqueOrThrow({ where: { id: p.dueId } });

@@ -1,3 +1,4 @@
+//echd-frontend/src/components/app/finance-bits.tsx
 'use client';
 
 import { Ban, Bell, CheckCircle2, FileText, Mail, MessageCircle, Plus, Printer, Receipt, Send, Share2 } from 'lucide-react';
@@ -5,15 +6,16 @@ import { useEffect, useState } from 'react';
 import { Button, IconButton } from '@/components/ui/button';
 import { Badge, Card, ProgressBar } from '@/components/ui/display';
 import { Modal, Notice, Spinner, useToast } from '@/components/ui/feedback';
-import { Chips, Field, Input, TextField, TextareaField } from '@/components/ui/form';
+import { Chips, Field, Input, Switch, TextField, TextareaField } from '@/components/ui/form';
 import { api, openDocument, shareDocument } from '@/lib/api';
 import { invalidate, messageOf } from '@/lib/hooks';
 import { useLocale } from '@/lib/i18n';
 import { todayISO } from '@/lib/locale';
+import { useLookups } from '@/lib/lookups';
 import { centsToEuro, cn, euroToCents, waLink } from '@/lib/utils';
 import { dueStatus, methodLabel } from './labels';
 
-const refresh = () => invalidate('/dues', '/students', '/payments', '/finance', '/dashboard', '/reminders');
+const refresh = () => invalidate('/dues', '/students', '/payments', '/finance', '/dashboard', '/reminders', '/expenses');
 
 /* ─────────── Échéance ─────────── */
 
@@ -105,6 +107,22 @@ export function PaymentCard({ p, onCancel }: { p: any; onCancel?: (p: any) => vo
   const cancelled = !!p.cancelledAt;
   const [busy, setBusy] = useState(false);
 
+  const [mailing, setMailing] = useState(false);
+
+  async function emailIt() {
+    setMailing(true);
+    try {
+      const r = await api<{ sent: boolean; to: string[] }>(`/payments/${p.id}/send-receipt`, { method: 'POST', body: {} });
+      if (!r.to.length) toast.error(t('Aucune adresse e-mail pour cet élève ou ses responsables.', 'لا يوجد بريد إلكتروني لهذا الطالب أو ولي أمره.'));
+      else if (r.sent) toast.ok(t(`Reçu envoyé à ${r.to.join(', ')}`, `تم إرسال الإيصال إلى ${r.to.join(', ')}`));
+      else toast.error(t('L’envoi a échoué. Réessayez plus tard.', 'فشل الإرسال. حاول لاحقاً.'));
+    } catch (e) {
+      toast.error(messageOf(e));
+    } finally {
+      setMailing(false);
+    }
+  }
+
   async function share() {
     setBusy(true);
     try {
@@ -140,7 +158,10 @@ export function PaymentCard({ p, onCancel }: { p: any; onCancel?: (p: any) => vo
             {t('Reçu', 'الإيصال')}
           </Button>
           <Button size="sm" variant="ghost" loading={busy} icon={<Share2 className="size-4" />} onClick={share}>
-            {t('Envoyer', 'إرسال')}
+            {t('WhatsApp', 'واتساب')}
+          </Button>
+          <Button size="sm" variant="ghost" loading={mailing} icon={<Mail className="size-4" />} onClick={emailIt}>
+            {t('E-mail', 'بريد')}
           </Button>
           {onCancel && (
             <Button size="sm" variant="ghost" className="text-bad" icon={<Ban className="size-4" />} onClick={() => onCancel(p)}>
@@ -166,9 +187,13 @@ export function PaymentModal({ due, onClose, onDone }: { due: any | null; onClos
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<any | null>(null);
+  const { lk } = useLookups();
+  const [mailReceipt, setMailReceipt] = useState(false);
+  const autoMail = !!lk?.settings?.['receipts.emailAuto'];
 
   useEffect(() => {
     if (due) {
+      setMailReceipt(autoMail);
       setAmount(centsToEuro(due.remainingCents ?? due.amountCents - due.paidCents));
       setMethod('CASH');
       setPaidAt(todayISO());
@@ -177,7 +202,7 @@ export function PaymentModal({ due, onClose, onDone }: { due: any | null; onClos
       setErr(null);
       setDone(null);
     }
-  }, [due]);
+  }, [due, autoMail]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -186,7 +211,7 @@ export function PaymentModal({ due, onClose, onDone }: { due: any | null; onClos
     if (!cents || cents <= 0) return setErr(t('Indiquez un montant valide.', 'أدخل مبلغاً صحيحاً.'));
     setBusy(true);
     try {
-      const p = await api('/payments', { method: 'POST', body: { dueId: due.id, amountCents: cents, method, paidAt, reference: reference.trim() || undefined, comment: comment.trim() || undefined } });
+      const p = await api('/payments', { method: 'POST', body: { dueId: due.id, amountCents: cents, method, paidAt, reference: reference.trim() || undefined, comment: comment.trim() || undefined, sendReceipt: mailReceipt } });
       refresh();
       onDone?.();
       setDone(p);
@@ -204,6 +229,7 @@ export function PaymentModal({ due, onClose, onDone }: { due: any | null; onClos
           <CheckCircle2 className="mx-auto size-12 text-ok" />
           <p className="font-serif text-lg font-bold text-brand-800">{money(done.amountCents)}</p>
           <p className="num text-sm text-brand-500">{t('Reçu', 'إيصال')} {done.receiptNumber}</p>
+          {mailReceipt && <p className="text-xs text-brand-400">{t('Le reçu part par e-mail si une adresse est renseignée.', 'يُرسل الإيصال بالبريد إن وُجد عنوان.')}</p>}
           <div className="flex flex-wrap justify-center gap-2">
             <Button variant="primary" icon={<Printer className="size-4" />} onClick={() => openDocument('receipt', done.id, isAr ? 'ar' : 'fr').catch((e) => toast.error(messageOf(e)))}>
               {t('Imprimer le reçu', 'طباعة الإيصال')}
@@ -228,6 +254,7 @@ export function PaymentModal({ due, onClose, onDone }: { due: any | null; onClos
           <TextField label={t('Date', 'التاريخ')} type="date" dir="ltr" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className="[&_input]:text-start" />
           <TextField label={t('Référence', 'المرجع')} hint={t('N° de chèque, de virement… (facultatif)', 'رقم الشيك أو التحويل… (اختياري)')} value={reference} onChange={(e) => setReference(e.target.value)} />
           <TextareaField label={t('Commentaire', 'تعليق')} rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />
+          <Switch checked={mailReceipt} onChange={setMailReceipt} label={t('Envoyer le reçu par e-mail', 'إرسال الإيصال بالبريد')} />
           {err && <Notice tone="bad">{err}</Notice>}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>{t('Annuler', 'إلغاء')}</Button>
