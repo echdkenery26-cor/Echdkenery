@@ -2,19 +2,18 @@
 'use client';
 
 import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardX, GraduationCap, Hourglass, Megaphone, UserPlus, Users, Wallet } from 'lucide-react';
+import { BalanceHero } from '@/components/app/balance-hero';
 import { CollectionsCard } from '@/components/app/collections-card';
 import { SessionCard } from '@/components/app/session-card';
-import { Avatar, Badge, Card, CardTitle, SectionTitle, StatCard } from '@/components/ui/display';
+import { Badge, Card, CardTitle, SectionTitle, StatCard } from '@/components/ui/display';
 import { Link } from '@/components/ui/button';
 import { EmptyState, ErrorState, SkeletonCards } from '@/components/ui/feedback';
-import { useAuth } from '@/lib/auth';
 import { useApi } from '@/lib/hooks';
 import { useLocale } from '@/lib/i18n';
 import { todayISO } from '@/lib/locale';
 
 export default function DashboardPage() {
   const { t, pick, date, money, num } = useLocale();
-  const { user } = useAuth();
   const { data, error, loading, reload } = useApi<any>('/dashboard');
 
   if (error) return <ErrorState message={error.message} onRetry={reload} />;
@@ -25,18 +24,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <header className="pt-2">
-        <h1 className="font-serif text-2xl font-bold text-brand-800 sm:text-3xl">
-          {t('Bonjour', 'مرحباً')} {user?.firstName}
-        </h1>
-        <p className="text-sm text-brand-500">{date(data.today || todayISO(), 'long')}</p>
-      </header>
+      <BalanceHero today={date(data.today || todayISO(), 'long')} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={<GraduationCap className="size-6" />} value={num(k.students.total)} label={t('Élèves inscrits', 'الطلاب المسجّلون')} hint={`${num(k.students.children)} ${t('enfants', 'أطفال')} · ${num(k.students.adults)} ${t('adultes', 'كبار')}`} href="/admin/students" />
-        <StatCard icon={<Users className="size-6" />} tone="gold" value={num(k.seatsLeft)} label={t('Places libres', 'مقاعد شاغرة')} hint={t(`sur ${num(k.seatsTotal)}`, `من أصل ${num(k.seatsTotal)}`)} href="/admin/classes" />
-        <StatCard icon={<UserPlus className="size-6" />} tone={k.newPreRegistrations ? 'warn' : 'neutral'} value={num(k.newPreRegistrations)} label={t('Nouvelles préinscriptions', 'طلبات جديدة')} href="/admin/pre-registrations" />
-        <StatCard icon={<AlertTriangle className="size-6" />} tone={k.lateStudents ? 'bad' : 'ok'} value={num(k.lateStudents)} label={t('Élèves en retard de paiement', 'طلاب متأخرون في السداد')} href="/admin/finance?state=late" />
+        <StatCard icon={<GraduationCap />} value={num(k.students.total)} label={t('Élèves inscrits', 'الطلاب المسجّلون')} hint={`${num(k.students.children)} ${t('enfants', 'أطفال')} · ${num(k.students.adults)} ${t('adultes', 'كبار')}`} href="/admin/students" />
+        <StatCard icon={<Users />} tone="gold" value={num(k.seatsLeft)} label={t('Places libres', 'مقاعد شاغرة')} hint={t(`sur ${num(k.seatsTotal)}`, `من أصل ${num(k.seatsTotal)}`)} href="/admin/classes" />
+        <StatCard icon={<UserPlus />} tone={k.newPreRegistrations ? 'warn' : 'neutral'} value={num(k.newPreRegistrations)} label={t('Nouvelles préinscriptions', 'طلبات جديدة')} href="/admin/pre-registrations" />
+        <StatCard icon={<AlertTriangle />} tone={k.lateStudents ? 'bad' : 'ok'} value={num(k.lateStudents)} label={t('Élèves en retard', 'طلاب متأخرون')} hint={t('de paiement', 'في السداد')} href="/admin/finance?state=late" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">

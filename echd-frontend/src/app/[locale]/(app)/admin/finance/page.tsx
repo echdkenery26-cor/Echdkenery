@@ -104,19 +104,19 @@ export default function FinancePage() {
       />
 
       <div className="mb-4 flex items-center gap-3">
-        <label className="flex items-center gap-2 text-sm font-semibold text-brand-600">
-          <CalendarClock className="size-4" />
-          <span className="sr-only sm:not-sr-only">{t('Mois', 'الشهر')}</span>
+        <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white px-3 shadow-card focus-within:ring-2 focus-within:ring-gold-500 sm:max-w-xs">
+          <CalendarClock className="size-4 shrink-0 text-brand-500" />
+          <span className="sr-only">{t('Mois', 'الشهر')}</span>
           <input
             type="month"
             dir="ltr"
             value={month}
             onChange={(e) => set({ month: e.target.value }, false)}
-            className="tap rounded-xl bg-white px-3 text-sm font-semibold text-brand-700 shadow-card outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+            className="tap min-w-0 flex-1 bg-transparent text-sm font-semibold text-brand-700 outline-none"
           />
         </label>
         {f.month && (
-          <button type="button" className="text-sm font-semibold text-brand-500 underline-offset-2 hover:underline" onClick={() => set({ month: '' }, false)}>
+          <button type="button" className="shrink-0 text-sm font-semibold text-brand-500 underline-offset-2 hover:underline" onClick={() => set({ month: '' }, false)}>
             {t('Mois en cours', 'الشهر الحالي')}
           </button>
         )}

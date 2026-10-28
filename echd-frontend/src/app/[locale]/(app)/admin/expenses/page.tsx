@@ -1,11 +1,12 @@
 //echd-frontend/src/app/[locale]/(app)/admin/expenses/page.tsx
 'use client';
 
-import { Download, HandCoins, Landmark, Plus, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { CalendarClock, Download, HandCoins, Landmark, Plus, TrendingDown, TrendingUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CancelExpenseModal, EXPENSE_CATEGORIES, ExpenseCard, ExpenseModal, categoryMeta, periodBounds } from '@/components/app/expense-bits';
 import { Button } from '@/components/ui/button';
-import { Badge, Card, CardTitle, PageHeader, Pagination, ProgressBar, StatCard } from '@/components/ui/display';
+import { AutoFit } from '@/components/ui/auto-fit';
+import { Badge, Card, CardTitle, PageHeader, Pagination } from '@/components/ui/display';
 import { EmptyState, ErrorState, SkeletonCards, useToast } from '@/components/ui/feedback';
 import { Chips, SearchBox, Switch } from '@/components/ui/form';
 import { Popover } from '@/components/ui/popover';
@@ -119,25 +120,9 @@ export default function ExpensesPage() {
         }
       />
 
-      {/* Solde disponible */}
-      <Card className="mb-4 bg-brand-700 text-white">
-        <div className="flex items-start gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/15"><Landmark className="size-5" /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white/75">{t('Solde disponible', 'الرصيد المتاح')}</p>
-            <p className={cn('num font-serif text-3xl font-bold', cash && cash.balanceCents < 0 && 'text-red-200')}>{cash ? money(cash.balanceCents) : '…'}</p>
-            {cash && (
-              <p className="mt-1 text-xs text-white/70">
-                {t('Solde de départ', 'الرصيد الابتدائي')} {money(cash.openingCents)} + {t('encaissé', 'المحصّل')} {money(cash.collectedCents)} − {t('dépensé', 'المصروف')} {money(cash.spentCents)}
-              </p>
-            )}
-          </div>
-        </div>
-      </Card>
-
       {/* Période */}
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <div role="tablist" aria-label={t('Période', 'الفترة')} className="grid grid-cols-4 gap-1 rounded-2xl bg-sand-200/70 p-1">
+      <div className="mb-3 space-y-2.5">
+        <div role="tablist" aria-label={t('Période', 'الفترة')} className="grid w-full grid-cols-4 gap-1 rounded-2xl bg-sand-200/70 p-1">
           {([['month', t('Mois', 'الشهر')], ['quarter', t('Trimestre', 'الربع')], ['year', t('Année', 'السنة')], ['all', t('Tout', 'الكل')]] as Array<[Period, string]>).map(([v, label]) => (
             <button
               key={v}
@@ -145,40 +130,41 @@ export default function ExpensesPage() {
               role="tab"
               aria-selected={period === v}
               onClick={() => set({ period: v })}
-              className={cn('tap rounded-xl px-3 py-1.5 text-sm font-semibold transition', period === v ? 'bg-white text-brand-700 shadow-card' : 'text-brand-500 hover:text-brand-700')}
+              className={cn('tap rounded-xl px-2 py-1.5 text-sm font-semibold transition', period === v ? 'bg-white text-brand-700 shadow-card' : 'text-brand-500 hover:text-brand-700')}
             >
               {label}
             </button>
           ))}
         </div>
         {period !== 'all' && (
-          <input
-            type="month"
-            dir="ltr"
-            aria-label={t('Mois de référence', 'الشهر المرجعي')}
-            value={month}
-            onChange={(e) => e.target.value && set({ month: e.target.value })}
-            className="tap rounded-xl bg-white px-3 text-sm font-semibold text-brand-700 shadow-card outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
-          />
+          <div className="flex items-center gap-3">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white px-3 shadow-card focus-within:ring-2 focus-within:ring-gold-500 sm:max-w-xs">
+              <CalendarClock className="size-4 shrink-0 text-brand-500" />
+              <input
+                type="month"
+                dir="ltr"
+                aria-label={t('Mois de référence', 'الشهر المرجعي')}
+                value={month}
+                onChange={(e) => e.target.value && set({ month: e.target.value })}
+                className="tap min-w-0 flex-1 bg-transparent text-sm font-semibold text-brand-700 outline-none"
+              />
+            </label>
+            {period !== 'month' && <span className="shrink-0 text-sm font-semibold text-brand-500">{periodTitle}</span>}
+          </div>
         )}
-        {period !== 'all' && <span className="text-sm font-semibold text-brand-500">{periodTitle}</span>}
       </div>
 
       {balance.error && !b ? (
         <ErrorState message={balance.error.message} onRetry={balance.reload} />
       ) : (
         <>
-          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard icon={<TrendingUp className="size-5 sm:size-6" />} tone="ok" value={b ? money(period === 'all' ? cash.collectedCents : b.collectedCents) : '…'} label={t('Encaissé', 'المحصّل')} />
-            <StatCard icon={<TrendingDown className="size-5 sm:size-6" />} tone="warn" value={b ? money(period === 'all' ? cash.spentCents : b.spentCents) : '…'} label={t('Dépensé', 'المصروف')} hint={b && period !== 'all' ? t(`${num(b.expensesCount)} dépense(s)`, `${num(b.expensesCount)} مصروف`) : undefined} />
-            <StatCard
-              icon={<Wallet className="size-5 sm:size-6" />}
-              tone={b && (period === 'all' ? cash.collectedCents - cash.spentCents : b.balanceCents) < 0 ? 'bad' : 'gold'}
-              value={b ? money(period === 'all' ? cash.collectedCents - cash.spentCents : b.balanceCents) : '…'}
-              label={t('Solde de la période', 'رصيد الفترة')}
-              hint={t('encaissé − dépensé', 'المحصّل − المصروف')}
-            />
-          </div>
+          <PeriodSummary
+            loading={!b}
+            collectedCents={b ? (period === 'all' ? cash.collectedCents : b.collectedCents) : 0}
+            spentCents={b ? (period === 'all' ? cash.spentCents : b.spentCents) : 0}
+            balanceCents={b ? (period === 'all' ? cash.collectedCents - cash.spentCents : b.balanceCents) : 0}
+            availableCents={cash?.balanceCents}
+          />
 
           {b && period !== 'all' && (
             <>
@@ -271,5 +257,57 @@ export default function ExpensesPage() {
       <ExpenseModal open={formOpen} expense={editing} onClose={() => setFormOpen(false)} />
       <CancelExpenseModal expense={cancelling} onClose={() => setCancelling(null)} />
     </div>
+  );
+}
+
+/** Solde de la période en grand ; encaissé et dépensé juste dessous, sur la même ligne ; solde disponible en pied. */
+function PeriodSummary({ loading, collectedCents, spentCents, balanceCents, availableCents }: { loading: boolean; collectedCents: number; spentCents: number; balanceCents: number; availableCents?: number }) {
+  const { t, money } = useLocale();
+  const pulse = (w: string, h: string) => <div className={cn('animate-pulse rounded-lg bg-sand-200', w, h)} aria-busy="true" />;
+  return (
+    <Card className="mb-3 overflow-hidden !p-0">
+      <div className="px-4 pb-4 pt-4 sm:px-5">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand-500 rtl:tracking-normal">{t('Solde de la période', 'رصيد الفترة')}</p>
+          <p className="text-xs text-brand-400">{t('encaissé − dépensé', 'المحصّل − المصروف')}</p>
+        </div>
+        <div className="mt-1">
+          {loading ? (
+            pulse('w-44', 'h-9')
+          ) : (
+            <AutoFit maxSize={34} minSize={20} className={cn('num font-serif font-bold', balanceCents < 0 ? 'text-bad' : 'text-brand-700')}>
+              {money(balanceCents)}
+            </AutoFit>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 divide-x divide-sand-200 border-t border-sand-200 bg-sand-100/70 rtl:divide-x-reverse">
+        <div className="min-w-0 px-4 py-3 sm:px-5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-ok">
+            <TrendingUp className="size-3.5 shrink-0" /> {t('Encaissé', 'المحصّل')}
+          </p>
+          <div className="mt-0.5">{loading ? pulse('w-24', 'h-5') : <AutoFit maxSize={18} minSize={12} className="num font-serif font-bold text-brand-800">{money(collectedCents)}</AutoFit>}</div>
+        </div>
+        <div className="min-w-0 px-4 py-3 sm:px-5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-warn">
+            <TrendingDown className="size-3.5 shrink-0" /> {t('Dépensé', 'المصروف')}
+          </p>
+          <div className="mt-0.5">{loading ? pulse('w-24', 'h-5') : <AutoFit maxSize={18} minSize={12} className="num font-serif font-bold text-brand-800">{money(spentCents)}</AutoFit>}</div>
+        </div>
+      </div>
+
+      {availableCents != null && (
+        <div className="flex items-center justify-between gap-3 border-t border-sand-200 px-4 py-3 sm:px-5">
+          <p className="flex items-center gap-2 text-sm font-semibold text-brand-600">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand-600 text-white">
+              <Landmark className="size-3.5" />
+            </span>
+            {t('Solde disponible', 'الرصيد المتاح')}
+          </p>
+          <p className={cn('num font-serif text-base font-bold', availableCents < 0 ? 'text-bad' : 'text-brand-800')}>{money(availableCents)}</p>
+        </div>
+      )}
+    </Card>
   );
 }

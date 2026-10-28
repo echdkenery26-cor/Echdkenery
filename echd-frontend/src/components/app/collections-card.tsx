@@ -1,9 +1,9 @@
 //echd-frontend/src/components/app/collections-card.tsx
 'use client';
 
-import { Landmark, Plus, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from '@/components/ui/button';
+import { AutoFit } from '@/components/ui/auto-fit';
 import { Badge, Card, CardTitle, ProgressBar } from '@/components/ui/display';
 import { useAuth } from '@/lib/auth';
 import { useApi } from '@/lib/hooks';
@@ -144,44 +144,23 @@ export function CollectionsCard() {
           )}
 
           {isAdmin && bal.data && (
-            <div className="mt-4 rounded-2xl bg-sand-100 p-3.5">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-brand-500">{t('Dépenses de la période', 'مصروفات الفترة')}</p>
-                  <p className="num font-serif text-lg font-bold text-bad">−{money(bal.data.spentCents)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-brand-500">{t('Solde de la période', 'رصيد الفترة')}</p>
-                  <p className={cn('num font-serif text-lg font-bold', bal.data.balanceCents < 0 ? 'text-bad' : 'text-ok')}>{money(bal.data.balanceCents)}</p>
-                </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-sand-100 p-3.5">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-brand-500">{t('Dépenses de la période', 'مصروفات الفترة')}</p>
+                <AutoFit maxSize={18} minSize={12} className="num font-serif font-bold text-bad">
+                  −{money(bal.data.spentCents)}
+                </AutoFit>
               </div>
-              <div className="mt-3 flex items-center gap-2.5 border-t border-sand-200 pt-3">
-                <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand-600 text-white"><Landmark className="size-4" /></span>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-brand-500">{t('Solde disponible', 'الرصيد المتاح')}</p>
-                  <p className={cn('num font-serif text-xl font-bold', bal.data.cash.balanceCents < 0 ? 'text-bad' : 'text-brand-800')}>{money(bal.data.cash.balanceCents)}</p>
-                </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-brand-500">{t('Solde de la période', 'رصيد الفترة')}</p>
+                <AutoFit maxSize={18} minSize={12} className={cn('num font-serif font-bold', bal.data.balanceCents < 0 ? 'text-bad' : 'text-ok')}>
+                  {money(bal.data.balanceCents)}
+                </AutoFit>
               </div>
             </div>
           )}
         </div>
       )}
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <Link href="/admin/finance" className="tap inline-flex items-center text-sm font-semibold text-brand-600 hover:underline">
-          {t('Voir les cotisations', 'عرض الاشتراكات')}
-        </Link>
-        {isAdmin && (
-          <>
-            <Link href="/admin/expenses" className="tap inline-flex items-center text-sm font-semibold text-brand-600 hover:underline">
-              {t('Voir les dépenses', 'عرض المصروفات')}
-            </Link>
-            <Link href="/admin/expenses?new=1" className="tap inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline">
-              <Plus className="size-3.5" /> {t('Dépense', 'مصروف')}
-            </Link>
-          </>
-        )}
-      </div>
     </Card>
   );
 }

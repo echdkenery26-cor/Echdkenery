@@ -1,9 +1,11 @@
+//echd-frontend/src/components/ui/display.tsx
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocale } from '@/lib/i18n';
 import { initials } from '@/lib/locale';
 import { cn } from '@/lib/utils';
+import { AutoFit } from './auto-fit';
 import { Link } from './button';
 
 /* ───────── Carte : l'unité de base du back-office ───────── */
@@ -74,7 +76,7 @@ export function PageHeader({
         <h1 className="font-serif text-2xl font-bold leading-tight text-brand-800 sm:text-[1.75rem]">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-brand-500">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2 whitespace-nowrap max-sm:[&>*]:flex-1 max-sm:[&>.relative>button]:w-full">{actions}</div>}
     </header>
   );
 }
@@ -157,13 +159,19 @@ export function StatCard({
     gold: 'bg-gold-200 text-gold-700',
   }[tone];
   return (
-    <Card href={href} className="flex items-center gap-3 !p-3.5 sm:gap-3.5 sm:!p-5">
-      {icon && <span className={cn('grid size-10 shrink-0 place-items-center rounded-2xl sm:size-12', bubble)}>{icon}</span>}
-      <div className="min-w-0 flex-1">
-        <p className="num font-serif text-2xl font-bold leading-none text-brand-800">{value}</p>
-        <p className="mt-1.5 text-sm leading-snug text-brand-500">{label}</p>
-        {hint && <p className="text-xs text-brand-400">{hint}</p>}
+    <Card href={href} className="flex min-w-0 flex-col gap-2.5 !p-3.5 sm:!p-4">
+      <div className="flex items-center gap-2">
+        {icon && <span className={cn('grid size-9 shrink-0 place-items-center rounded-xl [&_svg]:size-[1.15rem]', bubble)}>{icon}</span>}
+        <p className="line-clamp-2 min-w-0 break-words text-[0.78rem] font-semibold leading-snug text-brand-500">{label}</p>
       </div>
+      {typeof value === 'string' || typeof value === 'number' ? (
+        <AutoFit maxSize={24} minSize={14} className="num font-serif font-bold text-brand-800">
+          {value}
+        </AutoFit>
+      ) : (
+        <p className="num font-serif text-2xl font-bold leading-tight text-brand-800">{value}</p>
+      )}
+      {hint && <p className="-mt-1 min-w-0 break-words text-xs text-brand-400">{hint}</p>}
     </Card>
   );
 }
@@ -198,7 +206,7 @@ export function Tabs<T extends string>({
 }) {
   return (
     <div className="scroll-x -mx-4 mb-5 px-4 md:mx-0 md:px-0" role="tablist">
-      <div className="inline-flex gap-1 rounded-2xl bg-sand-200/70 p-1">
+      <div className="inline-flex min-w-full gap-1 rounded-2xl bg-sand-200/70 p-1 md:min-w-0">
         {tabs.map((tb) => {
           const on = tb.value === value;
           return (
@@ -209,7 +217,7 @@ export function Tabs<T extends string>({
               aria-selected={on}
               onClick={() => onChange(tb.value)}
               className={cn(
-                'tap shrink-0 rounded-xl px-4 py-2 text-sm font-semibold whitespace-nowrap transition',
+                'tap flex-1 shrink-0 rounded-xl px-2.5 py-2 text-sm font-semibold whitespace-nowrap transition sm:px-4',
                 on ? 'bg-white text-brand-700 shadow-card' : 'text-brand-500 hover:text-brand-700',
               )}
             >

@@ -1,9 +1,9 @@
+//echd-frontend/src/components/app/shell.tsx
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Bell, KeyRound, LogOut, MoreHorizontal, UserRound } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
 import { Logo } from '@/components/brand';
 import { LangSwitch } from '@/components/site/lang-switch';
 import { Link } from '@/components/ui/button';
@@ -16,12 +16,17 @@ import { useLocale } from '@/lib/i18n';
 import { stripLocale } from '@/lib/locale';
 import { cn } from '@/lib/utils';
 import { NavGroup, NavItem, STAFF_NAV, TEACHER_NAV, roleLabel } from './nav';
-import { useState } from 'react';
 
 function isActive(path: string, href: string) {
   if (href === '/admin' || href === '/teacher') return path === href;
   return path === href || path.startsWith(href + '/');
 }
+
+/** Pages hors menu qui doivent quand même s'annoncer dans la barre du haut. */
+const EXTRA_PAGES: Array<{ href: string; label: [string, string]; icon: React.ComponentType<{ className?: string }> }> = [
+  { href: '/account', label: ['Mon compte', 'حسابي'], icon: UserRound },
+  { href: '/notifications', label: ['Notifications', 'الإشعارات'], icon: Bell },
+];
 
 export function AppShell({ children, name, logoUrl }: { children: React.ReactNode; name: string; logoUrl?: string | null }) {
   const { t, href } = useLocale();
@@ -63,8 +68,11 @@ export function AppShell({ children, name, logoUrl }: { children: React.ReactNod
   }
 
   const badge = (i: NavItem) => (i.badge === 'prereg' ? prereg.data?.new || 0 : 0);
-  const current = all.find((i) => isActive(pathname, i.href));
+  const current = all.find((i) => isActive(pathname, i.href)) ?? EXTRA_PAGES.find((i) => isActive(pathname, i.href));
   const unreadCount = unread.data?.count || 0;
+  const homeHref = isTeacher ? '/teacher' : '/admin';
+  // Sur le tableau de bord, la carte du solde « monte » sur le bandeau
+  const overlapHero = isStaff && pathname === '/admin';
 
   const UserMenu = (
     <Popover
@@ -100,11 +108,17 @@ export function AppShell({ children, name, logoUrl }: { children: React.ReactNod
     </Popover>
   );
 
-  const Bell_ = (
-    <Link href="/notifications" aria-label={t('Notifications', 'الإشعارات')} className="tap relative grid place-items-center rounded-full text-brand-600 hover:bg-brand-50">
+  const bell = (onDark: boolean) => (
+    <Link
+      href="/notifications"
+      aria-label={t('Notifications', 'الإشعارات')}
+      className={cn('tap relative grid place-items-center rounded-full transition', onDark ? 'bg-white/10 text-white hover:bg-white/20' : 'text-brand-600 hover:bg-brand-50')}
+    >
       <Bell className="size-5" />
       {unreadCount > 0 && (
-        <span className="num absolute end-1 top-1 grid min-w-5 place-items-center rounded-full bg-gold-500 px-1 text-[0.68rem] font-bold leading-5 text-brand-800">{unreadCount > 99 ? '99+' : unreadCount}</span>
+        <span className={cn('num absolute end-0.5 top-0.5 grid min-w-5 place-items-center rounded-full bg-gold-500 px-1 text-[0.68rem] font-bold leading-5 text-brand-800', onDark && 'ring-2 ring-brand-800')}>
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
       )}
     </Link>
   );
@@ -114,7 +128,7 @@ export function AppShell({ children, name, logoUrl }: { children: React.ReactNod
       {/* Barre latérale (ordinateur) */}
       <aside className="no-print hidden w-64 shrink-0 lg:block">
         <div className="fixed inset-y-0 start-0 flex w-64 flex-col bg-brand-800 text-white">
-          <Link href={isTeacher ? '/teacher' : '/admin'} className="flex items-center gap-3 px-5 py-5">
+          <Link href={homeHref} className="flex items-center gap-3 px-5 py-5">
             <Logo src={logoUrl} size={40} tone="light" />
             <span className="line-clamp-2 font-serif text-sm font-bold leading-snug">{name}</span>
           </Link>
@@ -151,22 +165,50 @@ export function AppShell({ children, name, logoUrl }: { children: React.ReactNod
       </aside>
 
       <div className="min-w-0 flex-1">
-        {/* Barre du haut */}
-        <header className="no-print sticky top-0 z-30 flex h-14 items-center gap-2 bg-paper/90 px-4 backdrop-blur lg:h-16 lg:px-8">
-          <Link href={isTeacher ? '/teacher' : '/admin'} className="flex min-w-0 items-center gap-2.5 lg:hidden">
-            <Logo src={logoUrl} size={32} />
-            <span className="truncate font-serif text-sm font-bold text-brand-800">{current ? t(...current.label) : name}</span>
-          </Link>
-          <div className="ms-auto flex items-center gap-1">
-            <div className="lg:hidden">
-              <LangSwitch />
+        {/* Barre du haut — téléphone : la barre reste collée en haut, le bandeau défile avec la page */}
+        <header className="no-print sticky top-0 z-30 bg-brand-800 pt-[env(safe-area-inset-top)] lg:hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Link href={homeHref} className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="grid size-[3.25rem] shrink-0 place-items-center rounded-2xl bg-white shadow-[0_8px_20px_-8px_rgb(0_0_0/0.6)] ring-2 ring-gold-400/70">
+                <Logo src={logoUrl} size={42} />
+              </span>
+              <span className="min-w-0">
+                <span className="line-clamp-2 block font-serif text-[0.95rem] font-bold leading-snug text-white">{name}</span>
+                <span className="block truncate text-xs font-semibold text-gold-300">{roleLabel(user.role, t)}</span>
+              </span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {bell(true)}
+              {UserMenu}
             </div>
-            {Bell_}
+          </div>
+        </header>
+        <div className={cn('no-print relative overflow-hidden rounded-b-[1.75rem] bg-gradient-to-b from-brand-800 to-brand-700 px-4 pt-1 shadow-card lg:hidden', overlapHero ? 'pb-14' : 'pb-5')}>
+          <div className="pattern-star pointer-events-none absolute inset-0 [mask-image:linear-gradient(to_bottom,transparent,black)]" />
+          <div className="relative flex items-center justify-between gap-3">
+            {current ? (
+              <span className="flex min-w-0 items-center gap-2 rounded-full bg-white/10 py-1.5 ps-1.5 pe-4 text-white ring-1 ring-white/15">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-gold-500 text-brand-800">
+                  <current.icon className="size-4" />
+                </span>
+                <span className="truncate text-[0.95rem] font-semibold">{t(...current.label)}</span>
+              </span>
+            ) : (
+              <span />
+            )}
+            <LangSwitch tone="dark" className="shrink-0" />
+          </div>
+        </div>
+
+        {/* Barre du haut — ordinateur */}
+        <header className="no-print sticky top-0 z-30 hidden h-16 items-center gap-2 bg-paper/90 px-8 backdrop-blur lg:flex">
+          <div className="ms-auto flex items-center gap-1">
+            {bell(false)}
             {UserMenu}
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-2 lg:px-8 lg:pb-12">
+        <main className={cn('mx-auto w-full max-w-6xl px-4 pb-28 lg:px-8 lg:pb-12', overlapHero ? 'relative z-10 -mt-9 pt-0 lg:mt-0 lg:pt-2' : 'pt-5 lg:pt-2')}>
           <Suspense fallback={null}>{children}</Suspense>
         </main>
       </div>
